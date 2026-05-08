@@ -1,4 +1,4 @@
-# Customer Support Agent
+# Customer Support Agent Version 0.10
 
 ## About
 
@@ -211,7 +211,7 @@ This project is released under the [MIT License](LICENSE).
 
 ---
 
-## 简体中文版本
+## 简体中文版本 Version 0.10
 
 ### 项目简介
 
