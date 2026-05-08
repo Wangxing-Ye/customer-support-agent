@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+python-multipart
+langgraph
+langchain-openai
+langchain-core
+requests
+python-dotenv
+PyJWT
+pydantic>=2
+openai>=1.0.0

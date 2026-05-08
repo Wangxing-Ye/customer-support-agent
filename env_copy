@@ -1,0 +1,11 @@
+OPENAI_API_KEY=sk-proj-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+OPENAI_MODEL=gpt-5.4-mini
+RAGFLOW_API_KEY=ragflow--P8KYfButWSN6n85S-B-cTB-wXnEcDeppUQ_t2wteec
+KNOWLEDGE_BASE_ID=5f79d7ce48db11f1bf19bf1ca9abdca5
+RAGFLOW_URL=http://127.0.0.1:8888
+JWT_SECRET=1fd429f2e2492e02c209c3f77e1555a4b89129c93ebb346f57bc59e21a076ee4
+CORS_ORIGINS=http://127.0.0.1:3000,http://localhost:3000,http://127.0.0.1:4173,http://localhost:4173,http://127.0.0.1:8000,http://localhost:8000,http://127.0.0.1:8888,http://localhost:8888
+TTS_MODEL=tts-1
+TTS_VOICE=alloy
+RAG_BRAND_PREFIX=ABC
+RAG_BRAND_RETRY_SKIP_SUBSTRINGS=
