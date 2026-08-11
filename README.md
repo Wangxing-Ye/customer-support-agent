@@ -1,6 +1,6 @@
 # Client Services Agent (Professional Services)
 
-AI client-services assistant for a **US professional services** demo firm — **Summit Advisory Group**. Users chat by text or microphone. Answers are grounded with **RAGFlow**, orchestrated by **LangGraph**, and backed by **PostgreSQL** for appointments, tickets, and email logs.
+AI client-services assistant for a **US professional services** demo firm — **Summit Advisory Group**. Users chat by text or microphone. Answers are grounded in a firm knowledge base (local Markdown, or optional self-hosted **RAGFlow**), orchestrated by **LangGraph**, and backed by **PostgreSQL** for appointments, tickets, and email logs.
 
 This is a **single-tenant** demo. It does **not** place product orders.
 
@@ -8,7 +8,7 @@ This is a **single-tenant** demo. It does **not** place product orders.
 
 US **Professional, Scientific, and Technical Services** (NAICS 54) includes about **4.88 million** small businesses (SBA Office of Advocacy 2025 profile, Census 2022). About **82%** have no paid employees; the rest are mostly 1–19 person shops. Owners still answer the same questions about services, pricing, and availability, and they lose leads when a chat does not become a booked consult—or when an unresolved request never becomes a follow-up.
 
-This repo is a **lightweight, professional, shippable Client Services Agent** for that kind of firm. It is not a generic auto-reply bot. The demo tenant is **Summit Advisory Group**. The assistant grounds answers in a firm knowledge base (RAGFlow), books or cancels appointments, and escalates to a human via a support ticket. It does **not** place product orders and does **not** give licensed legal, tax, or medical advice.
+This repo is a **lightweight, professional, shippable Client Services Agent** for that kind of firm. It is not a generic auto-reply bot. The demo tenant is **Summit Advisory Group**. The assistant grounds answers in a firm knowledge base (local Markdown by default; RAGFlow when configured), books or cancels appointments, and escalates to a human via a support ticket. It does **not** place product orders and does **not** give licensed legal, tax, or medical advice.
 
 It is built so the owner can:
 
@@ -33,7 +33,7 @@ Phase 1 is **single-tenant**: one firm, Postgres, outbound email, embeddable cha
 
 ```text
 Vite React widget → FastAPI → LangGraph agent
-                       ├─ RAGFlow retrieval (prefetch + brand-prefix retry)
+                       ├─ Knowledge retrieval (local Markdown or RAGFlow)
                        ├─ Postgres (services, availability, appointments, tickets, email_log)
                        ├─ LangGraph PostgresSaver (falls back to MemorySaver / SQLite)
                        └─ Email provider (console | smtp | resend)
@@ -124,9 +124,16 @@ cd frontend && npm install && npm run dev
 
 Open http://localhost:3000
 
-### RAGFlow
+### Knowledge base
 
-Upload [docs/sample_kb_professional_services.md](docs/sample_kb_professional_services.md) (or your own KB) into RAGFlow, then set `RAGFLOW_URL`, `RAGFLOW_API_KEY`, and `KNOWLEDGE_BASE_ID` in `.env`. Re-upload the sample file if you previously ingested an older catalog (pricing and meeting-link policy live there).
+`KB_PROVIDER=auto` (default):
+
+- If `RAGFLOW_API_KEY` and `KNOWLEDGE_BASE_ID` are set, retrieve from self-hosted RAGFlow (brand-prefix retry). Empty or error responses fall back to the local file.
+- Otherwise inject [docs/sample_kb_professional_services.md](docs/sample_kb_professional_services.md) in full — enough for a small firm FAQ (under ~20 pages).
+
+Set `KB_PROVIDER=local` to skip RAGFlow, or `KB_PROVIDER=ragflow` to require it. Override the file with `KB_LOCAL_PATH`.
+
+Optional RAGFlow: upload that sample Markdown (or your own KB), then set `RAGFLOW_URL`, `RAGFLOW_API_KEY`, and `KNOWLEDGE_BASE_ID`. Re-upload if you previously ingested an older catalog.
 
 ## API
 
@@ -142,14 +149,14 @@ Chat body: `{ "message": "...", "thread_id": "optional-uuid" }`. Site JWT authen
 
 ## Tools (LangGraph)
 
-- `ragflow_retrieve`, `get_services`, `list_availability`
+- `ragflow_retrieve` (local Markdown or RAGFlow), `get_services`, `list_availability`
 - `book_appointment` → confirmation email (cancel code + Zoom + Google Calendar)
 - `cancel_appointment(email, cancel_code)` → server-side verification
 - `create_ticket` → requires email, phone, call window, question; returns `ticket_id` + `respond_by_display`
 
 ## Environment
 
-See [env_copy](env_copy). Important keys: `OPENAI_API_KEY`, `JWT_SECRET`, `DATABASE_URL`, RAGFlow vars, `EMAIL_PROVIDER`, `EMAIL_FROM`, `FIRM_NAME`, `FIRM_TIMEZONE`, `FIRM_WEBSITE`, `MEETING_LINK`.
+See [env_copy](env_copy). Important keys: `OPENAI_API_KEY`, `JWT_SECRET`, `DATABASE_URL`, `KB_PROVIDER`, RAGFlow vars, `EMAIL_PROVIDER`, `EMAIL_FROM`, `FIRM_NAME`, `FIRM_TIMEZONE`, `FIRM_WEBSITE`, `MEETING_LINK`.
 
 Do not commit `.env` (it is gitignored).
 

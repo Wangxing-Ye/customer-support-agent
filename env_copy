@@ -18,7 +18,11 @@ CHECKPOINT_DATABASE_URL=postgresql://pst:pst@127.0.0.1:5433/pst_agent
 # Local smoke without Docker:
 # USE_SQLITE=true
 
-# RAGFlow
+# Knowledge base: auto | local | ragflow
+# auto = RAGFlow when API key + dataset id are set, otherwise local Markdown
+KB_PROVIDER=auto
+KB_LOCAL_PATH=docs/sample_kb_professional_services.md
+# RAGFlow (optional; free self-hosted)
 RAGFLOW_URL=http://127.0.0.1:8888
 RAGFLOW_API_KEY=
 KNOWLEDGE_BASE_ID=

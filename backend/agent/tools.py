@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from backend.db import session_scope
-from backend.services.ragflow import ragflow_retrieve as _ragflow_retrieve
+from backend.services.ragflow import retrieve as _retrieve
 from backend.services.scheduling import (
     book_appointment as _book,
     cancel_appointment as _cancel,
@@ -13,8 +13,8 @@ from backend.services.tickets import create_support_ticket as _create_ticket
 
 
 def ragflow_retrieve(query: str) -> str:
-    """Search the firm knowledge base for facts relevant to the user's question."""
-    return _ragflow_retrieve(query)
+    """Search the firm knowledge base (local Markdown or RAGFlow) for facts relevant to the user's question."""
+    return _retrieve(query)
 
 
 def get_services() -> str:

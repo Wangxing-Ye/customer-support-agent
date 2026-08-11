@@ -13,7 +13,7 @@ from langgraph.prebuilt import ToolNode, tools_condition
 from backend.agent.prompts import build_system_prompt
 from backend.agent.tools import TOOLS
 from backend.config import CHECKPOINT_DATABASE_URL, OPENAI_MODEL
-from backend.services.ragflow import retrieve_with_brand_fallback
+from backend.services.ragflow import retrieve
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +33,7 @@ def agent_node(state: AgentState):
 
     if state["messages"] and isinstance(state["messages"][-1], HumanMessage):
         question = state["messages"][-1].content
-        rag_context = retrieve_with_brand_fallback(str(question))
+        rag_context = retrieve(str(question))
         messages.insert(
             1,
             SystemMessage(

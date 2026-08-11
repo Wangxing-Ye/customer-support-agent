@@ -56,6 +56,13 @@ CANCEL_WINDOW_HOURS = int(os.getenv("CANCEL_WINDOW_HOURS", "24"))
 CANCEL_CODE_MAX_ATTEMPTS = int(os.getenv("CANCEL_CODE_MAX_ATTEMPTS", "5"))
 CANCEL_CODE_PEPPER = os.getenv("CANCEL_CODE_PEPPER", JWT_SECRET or "dev-pepper-change-me")
 
+# local = inject Markdown; ragflow = self-hosted RAGFlow; auto = RAGFlow if configured else local
+_raw_kb_provider = os.getenv("KB_PROVIDER", "auto").strip().lower()
+KB_PROVIDER = _raw_kb_provider if _raw_kb_provider in ("auto", "local", "ragflow") else "auto"
+KB_LOCAL_PATH = os.getenv(
+    "KB_LOCAL_PATH", "docs/sample_kb_professional_services.md"
+).strip() or "docs/sample_kb_professional_services.md"
+
 RAGFLOW_URL = os.getenv("RAGFLOW_URL", "http://127.0.0.1:9222").rstrip("/")
 RAGFLOW_API_KEY = os.getenv("RAGFLOW_API_KEY")
 KNOWLEDGE_BASE_ID = os.getenv("KNOWLEDGE_BASE_ID")

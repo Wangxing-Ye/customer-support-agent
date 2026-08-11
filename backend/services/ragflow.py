@@ -1,11 +1,15 @@
-"""RAGFlow retrieval helpers."""
+"""Knowledge retrieval: local Markdown and/or RAGFlow."""
 from __future__ import annotations
 
+import logging
+from pathlib import Path
 from typing import List
 
 import requests
 
 from backend.config import (
+    KB_LOCAL_PATH,
+    KB_PROVIDER,
     KNOWLEDGE_BASE_ID,
     RAG_BRAND_PREFIX,
     RAG_BRAND_RETRY_SKIP_SUBSTRINGS,
@@ -15,6 +19,8 @@ from backend.config import (
     RAGFLOW_SIMILARITY_THRESHOLD,
     RAGFLOW_URL,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def dataset_ids_from_env() -> List[str]:
@@ -50,6 +56,60 @@ def should_skip_branded_prefix_retry(question: str) -> bool:
         if sub in q_lower:
             return True
     return False
+
+
+def ragflow_is_configured() -> bool:
+    return bool(RAGFLOW_API_KEY and dataset_ids_from_env())
+
+
+def resolve_kb_provider() -> str:
+    if KB_PROVIDER == "local":
+        return "local"
+    if KB_PROVIDER == "ragflow":
+        return "ragflow"
+    return "ragflow" if ragflow_is_configured() else "local"
+
+
+def local_kb_path() -> Path:
+    raw = Path(KB_LOCAL_PATH)
+    if raw.is_file():
+        return raw
+    return Path(__file__).resolve().parents[2] / KB_LOCAL_PATH
+
+
+def local_kb_text() -> str:
+    path = local_kb_path()
+    try:
+        text = path.read_text(encoding="utf-8").strip()
+    except OSError as exc:
+        return f"[error] Could not read local knowledge file {path}: {exc}"
+    return text or "[empty]"
+
+
+def _rag_unusable(text: str) -> bool:
+    t = (text or "").strip()
+    if not t or t == "[empty]":
+        return True
+    if t.startswith("[error]"):
+        return True
+    if t.startswith("Could not retrieve knowledge"):
+        return True
+    return False
+
+
+def retrieve(query: str) -> str:
+    """Firm knowledge for the agent: local Markdown, RAGFlow, or auto with fallback."""
+    provider = resolve_kb_provider()
+    if provider == "local":
+        return local_kb_text()
+
+    text = retrieve_with_brand_fallback(query)
+    if _rag_unusable(text):
+        local = local_kb_text()
+        if not _rag_unusable(local):
+            logger.info("RAGFlow returned no usable context; falling back to local KB")
+            return local
+    return text
 
 
 def ragflow_retrieve(query: str) -> str:
