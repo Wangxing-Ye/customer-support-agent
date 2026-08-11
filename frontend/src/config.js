@@ -9,9 +9,12 @@ export function getApiBase() {
 
 export const API_BASE = getApiBase();
 export const CHAT_URL = `${API_BASE}/chat`;
+export const CHAT_STREAM_URL = `${API_BASE}/chat/stream`;
 export const TRANSCRIBE_URL = `${API_BASE}/transcribe`;
 export const TTS_URL = `${API_BASE}/tts`;
 export const TOKEN_URL = `${API_BASE}/auth/token`;
 
-export const TOKEN_KEY = "abc_chat_jwt";
-export const MAX_WORDS = 50;
+export const TOKEN_KEY = "pst_chat_jwt";
+export const THREAD_KEY = "pst_chat_thread";
+export const MAX_WORDS = 150;
+export const FIRM_NAME = "Summit Advisory Group";

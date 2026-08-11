@@ -3,27 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Customer Support Agent</title>
+    <title>Client Services Agent</title>
     <link rel="icon" href="data:,">
 </head>
 <body>
 <div class="chat-container">
     <div class="header">
-        <div class="avatar"><img src="/assets/avatar.png" alt="Customer"></div>
+        <div class="avatar"><img src="/assets/avatar.png" alt="Advisor"></div>
         <div>
             <div class="header-title-row">
-                <h2>Customer Support Agent</h2>
-                <span class="version-label">V 0.10</span>
+                <h2>Client Services Agent</h2>
+                <span class="version-label">V 0.20</span>
             </div>
-            <p>By OpenAI, RAGFlow and LangGraph</p>
+            <p>Professional services • LangGraph · RAGFlow</p>
         </div>
     </div>
-    <div id="chat-body" class="chat-body"></div>
-    <div class="input-area">
-        <input id="input" placeholder="Type or click mic…" autocomplete="off">
-        <button type="button" id="send-btn" aria-label="Send message">↑</button>
-        <button type="button" id="voice-btn" class="voice-btn" aria-label="Voice input" aria-pressed="false">🎤</button>
-    </div>
+    <div id="widget-root" class="widget-root"></div>
 </div>
 <script type="module" src="/src/main.js"></script>
 </body>

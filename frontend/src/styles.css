@@ -109,33 +109,105 @@ body {
   border-top: 1px solid #e2e8f0;
   display: flex;
   gap: 12px;
+  align-items: flex-end;
 }
-input {
+#input,
+textarea#input {
   flex: 1;
-  padding: 18px 24px;
+  padding: 6px 14px;
   border: 2px solid #e2e8f0;
-  border-radius: 9999px;
+  border-radius: 18px;
   font-size: 16px;
+  font-family: inherit;
   outline: none;
+  resize: none;
+  min-height: 32px;
+  height: 32px;
+  max-height: 100px;
+  line-height: 1.4;
+  overflow-y: auto;
 }
-input:focus {
+#input:focus,
+textarea#input:focus {
   border-color: var(--primary);
+}
+.message.user {
+  white-space: pre-wrap;
 }
 button {
   background: var(--primary);
   color: white;
   border: none;
-  width: 56px;
-  height: 56px;
+  width: 45px;
+  height: 45px;
   border-radius: 50%;
   cursor: pointer;
-  font-size: 22px;
+  font-size: 18px;
 }
+.icon-btn,
+#send-btn,
+#voice-btn,
 .voice-btn {
-  background: #10b981;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.icon-btn img,
+#send-btn img,
+#voice-btn img {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  pointer-events: none;
+}
+.icon-btn-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.icon-btn {
+  position: relative;
+}
+#send-btn img.icon-focus,
+#voice-btn img.icon-focus,
+.icon-btn img.icon-focus {
+  display: none;
+}
+#send-btn img.icon-default,
+#voice-btn img.icon-default,
+.icon-btn img.icon-default {
+  display: block;
+}
+#send-btn:hover img.icon-default,
+#send-btn:focus img.icon-default,
+#send-btn:focus-visible img.icon-default,
+#voice-btn:hover img.icon-default,
+#voice-btn:focus img.icon-default,
+#voice-btn:focus-visible img.icon-default,
+#voice-btn.recording img.icon-default,
+.icon-btn:hover img.icon-default,
+.icon-btn:focus img.icon-default,
+.voice-btn.recording img.icon-default {
+  display: none;
+}
+#send-btn:hover img.icon-focus,
+#send-btn:focus img.icon-focus,
+#send-btn:focus-visible img.icon-focus,
+#voice-btn:hover img.icon-focus,
+#voice-btn:focus img.icon-focus,
+#voice-btn:focus-visible img.icon-focus,
+#voice-btn.recording img.icon-focus,
+.icon-btn:hover img.icon-focus,
+.icon-btn:focus img.icon-focus,
+.voice-btn.recording img.icon-focus {
+  display: block;
 }
 .voice-btn.recording {
-  background: #dc2626;
+  background: transparent;
   animation: voice-pulse 1.2s ease-in-out infinite;
 }
 @keyframes voice-pulse {
@@ -204,11 +276,15 @@ button {
 .message.bot img,
 .message.user img.chat-img {
   max-width: 100%;
+  max-height: 180px;
+  width: auto;
   height: auto;
+  object-fit: cover;
   border-radius: 12px;
   margin-top: 10px;
   display: block;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  cursor: zoom-in;
 }
 .message.bot p img {
   margin-top: 8px;
@@ -248,3 +324,77 @@ button {
     opacity: 1;
   }
 }
+
+.widget-root {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+.quick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 16px 0;
+  background: #f8fafc;
+}
+.quick-btn {
+  width: auto;
+  height: auto;
+  border-radius: 9999px;
+  padding: 8px 14px;
+  font-size: 13px;
+  background: white;
+  color: var(--primary);
+  border: 1px solid #bfdbfe;
+  cursor: pointer;
+}
+.quick-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.message.streaming {
+  opacity: 0.95;
+}
+.header p {
+  margin: 4px 0 0;
+  font-size: 0.8rem;
+  opacity: 0.9;
+}
+
+.img-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(15, 23, 42, 0.82);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  cursor: zoom-out;
+}
+.img-lightbox-photo {
+  max-width: min(96vw, 920px);
+  max-height: 90vh;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: 12px;
+  box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.45);
+  cursor: default;
+}
+.img-lightbox-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  font-size: 26px;
+  line-height: 1;
+  background: rgba(255, 255, 255, 0.92);
+  color: #0f172a;
+  cursor: pointer;
+}
+

@@ -1,44 +1,35 @@
-from fastapi import FastAPI, Depends, HTTPException, File, UploadFile
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from fastapi.responses import StreamingResponse
-from io import BytesIO
-from langgraph.graph import StateGraph, END
-from langgraph.prebuilt import ToolNode, tools_condition
-from langchain_openai import ChatOpenAI
-from langchain_core.messages import HumanMessage, SystemMessage
-from pydantic import BaseModel, field_validator
-from typing import TypedDict, Annotated, List
-import operator
-import requests
+"""FastAPI entrypoint: auth, chat (sync + SSE), voice, TTS."""
+from __future__ import annotations
+
+import json
+import logging
 import os
-import time
-from datetime import datetime, timezone
-import jwt
+import uuid
+from io import BytesIO
+
+from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
+from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage
 from openai import OpenAI
-from dotenv import load_dotenv
+from pydantic import BaseModel, field_validator
 
-load_dotenv()
-
-MAX_MESSAGE_WORDS = 50
-JWT_SECRET = os.getenv("JWT_SECRET")
-JWT_ALGORITHM = "HS256"
-JWT_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "1440"))
-
-_default_origins = (
-    "http://127.0.0.1:3000,http://localhost:3000,"
-    "http://127.0.0.1:4173,http://localhost:4173,"
-    "http://127.0.0.1:5500,http://localhost:5500,"
-    "http://127.0.0.1:8080,http://localhost:8080,"
-    "http://127.0.0.1:8000,http://localhost:8000"
+from backend.auth import create_access_token, verify_jwt
+from backend.config import (
+    CORS_ORIGINS,
+    FIRM_NAME,
+    MAX_MESSAGE_WORDS,
+    TTS_MODEL,
+    TTS_VOICE,
+    WHISPER_MODEL,
 )
-CORS_ORIGINS = [
-    o.strip()
-    for o in os.getenv("CORS_ORIGINS", _default_origins).split(",")
-    if o.strip()
-]
+from backend.db import Base, engine, ensure_schema, session_scope
+from backend.models import Appointment, AvailabilityRule, EmailLog, Service, Ticket  # noqa: F401
+from backend.services.scheduling import seed_defaults
 
-app = FastAPI()
+logger = logging.getLogger(__name__)
+
+app = FastAPI(title=f"{FIRM_NAME} Client Services Agent")
 
 app.add_middleware(
     CORSMiddleware,
@@ -48,93 +39,49 @@ app.add_middleware(
     allow_headers=["*", "Authorization"],
 )
 
-# Default includes port 9222 per RAGFlow docs; override via env, e.g. http://127.0.0.1:9222
-RAGFLOW_URL = os.getenv("RAGFLOW_URL", "http://127.0.0.1:9222").rstrip("/")
-RAGFLOW_API_KEY = os.getenv("RAGFLOW_API_KEY")
-# Dataset / knowledge-base UUID(s) from RAGFlow; comma-separated for multiple datasets
-KNOWLEDGE_BASE_ID = os.getenv("KNOWLEDGE_BASE_ID")
-RAGFLOW_SIMILARITY_THRESHOLD = float(os.getenv("RAGFLOW_SIMILARITY_THRESHOLD", "0.2"))
-RAGFLOW_KEYWORD = os.getenv("RAGFLOW_KEYWORD", "true").lower() in ("1", "true", "yes")
-# Lowercase + collapse whitespace for RAGFlow `question` only (chat message unchanged).
-RAGFLOW_RETRIEVAL_LOWERCASE = os.getenv("RAGFLOW_RETRIEVAL_LOWERCASE", "true").lower() in (
-    "1",
-    "true",
-    "yes",
-)
 
-# Branded-prefix retrieval retry: if the first RAG call returns empty, retry once with
-# "{RAG_BRAND_PREFIX} {user question}". Empty RAG_BRAND_PREFIX disables this retry.
-RAG_BRAND_PREFIX = os.getenv("RAG_BRAND_PREFIX", "ABC").strip()
-_raw_brand_skip = os.getenv("RAG_BRAND_RETRY_SKIP_SUBSTRINGS")
-if _raw_brand_skip is None:
-    _raw_brand_skip = ""
-RAG_BRAND_RETRY_SKIP_SUBSTRINGS = [
-    s.strip().lower() for s in _raw_brand_skip.split(",") if s.strip()
-]
+def _graph():
+    from backend.agent.graph import get_graph
+
+    return get_graph()
 
 
-def should_skip_branded_prefix_retry(question: str) -> bool:
-    """Skip branded-prefix retry if the user already named the brand or a configured entity."""
-    q_lower = str(question).lower()
-    bp = RAG_BRAND_PREFIX.lower()
-    if bp and bp in q_lower:
-        return True
-    for sub in RAG_BRAND_RETRY_SKIP_SUBSTRINGS:
-        if sub in q_lower:
-            return True
-    return False
+def _thread_config(thread_id: str | None) -> dict:
+    tid = (thread_id or "").strip() or str(uuid.uuid4())
+    return {"configurable": {"thread_id": tid}}, tid
 
 
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.4-mini")
-llm = ChatOpenAI(model=OPENAI_MODEL, temperature=0)
-
-WHISPER_MODEL = os.getenv("WHISPER_MODEL", "whisper-1")
-TTS_MODEL = os.getenv("TTS_MODEL", "tts-1")
-TTS_VOICE = os.getenv("TTS_VOICE", "alloy")
-
-AGENT_SYSTEM_PROMPT = """
-You are a customer support assistant of ABC company.
-
-Grounding rules:
-- For factual questions, policy questions, project details, or company-specific info, use the provided RAG context as the primary source of truth.
-- If the RAG context is empty or clearly unrelated, say you could not find this in the knowledge base and then provide a best-effort general answer.
-- Do not claim information came from the knowledge base unless it is present in the provided context.
-
-Style rules:
-- Answer directly; end when the answer is complete. Do not add filler closings.
-- Do not use phrases like "If you want", "If you'd like", "Let me know if", "Feel free to", "I'm happy to", or similar offers to continue — unless the user explicitly asked for options or next steps.
-- Do not volunteer summaries, extra tutorials, or "I can also help with..." unless the user asked.
-"""
-
-security = HTTPBearer()
+def _final_text(result: dict) -> str:
+    last = result["messages"][-1]
+    text = getattr(last, "content", None) or ""
+    return text if str(text).strip() else "I couldn’t generate a reply. Please try again."
 
 
-def create_access_token() -> str:
-    if not JWT_SECRET:
-        raise HTTPException(
-            status_code=500,
-            detail="JWT_SECRET is not set. Add a strong secret to .env.",
-        )
-    exp = int(time.time()) + JWT_EXPIRE_MINUTES * 60
-    payload = {"sub": "chat", "exp": exp}
-    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
-
-
-def verify_jwt(credentials: HTTPAuthorizationCredentials = Depends(security)) -> None:
-    if not JWT_SECRET:
-        raise HTTPException(
-            status_code=500,
-            detail="JWT_SECRET is not set. Add a strong secret to .env.",
-        )
-    token = credentials.credentials
+@app.on_event("startup")
+def on_startup() -> None:
     try:
-        jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
-    except jwt.PyJWTError:
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
+        Base.metadata.create_all(bind=engine)
+        ensure_schema()
+        with session_scope() as session:
+            seed_defaults(session)
+    except Exception as exc:  # noqa: BLE001
+        logger.error(
+            "Database init failed (%s). Start Postgres with "
+            "`docker compose up -d` and check DATABASE_URL. Error: %s",
+            type(exc).__name__,
+            exc,
+        )
+        raise
+    try:
+        _graph()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Graph warm-up deferred: %s", exc)
+    logger.info("Startup complete for %s", FIRM_NAME)
 
 
 class ChatRequest(BaseModel):
     message: str
+    thread_id: str | None = None
 
     @field_validator("message")
     @classmethod
@@ -162,165 +109,6 @@ class TtsRequest(BaseModel):
         return text
 
 
-class AgentState(TypedDict):
-    messages: Annotated[List, operator.add]
-
-
-# ====================== TOOLS ======================
-def _dataset_ids_from_env() -> List[str]:
-    if not KNOWLEDGE_BASE_ID:
-        return []
-    return [x.strip() for x in KNOWLEDGE_BASE_ID.split(",") if x.strip()]
-
-
-def _retrieval_question_text(query: str) -> str:
-    """Normalize text sent to RAGFlow only; user-facing message stays unchanged."""
-    text = (query or "").strip()
-    if not text:
-        return ""
-    if not RAGFLOW_RETRIEVAL_LOWERCASE:
-        return text
-    return " ".join(text.split()).lower()
-
-
-def _chunks_from_ragflow_response(body: dict) -> List[dict]:
-    """RAGFlow wraps payloads as {code, data: {chunks: [...]}}; older clients used top-level chunks."""
-    if not isinstance(body, dict):
-        return []
-    data = body.get("data")
-    if isinstance(data, dict) and data.get("chunks") is not None:
-        return data.get("chunks") or []
-    return body.get("chunks") or []
-
-
-def ragflow_retrieve(query: str):
-    """Search the knowledge base for facts relevant to the user's question."""
-    dataset_ids = _dataset_ids_from_env()
-    if not dataset_ids:
-        return "[error] KNOWLEDGE_BASE_ID is not set. Add your RAGFlow dataset id(s) to .env."
-
-    if not RAGFLOW_API_KEY:
-        return "[error] RAGFLOW_API_KEY is not set."
-
-    question_for_api = _retrieval_question_text(str(query))
-    if not question_for_api:
-        return ""
-
-    headers = {"Authorization": f"Bearer {RAGFLOW_API_KEY}", "Content-Type": "application/json"}
-    # Official HTTP API: dataset_ids (list). Some builds accept kb_id; dataset_ids matches UI retrieval.
-    payload = {
-        "question": question_for_api,
-        "dataset_ids": dataset_ids,
-        "top_k": 6,
-        "similarity_threshold": RAGFLOW_SIMILARITY_THRESHOLD,
-        "keyword": RAGFLOW_KEYWORD,
-    }
-    url = f"{RAGFLOW_URL}/api/v1/retrieval"
-    try:
-        resp = requests.post(url, json=payload, headers=headers, timeout=60)
-    except requests.RequestException as exc:
-        return f"[error] RAGFlow request failed: {exc}"
-
-    try:
-        body = resp.json()
-    except ValueError:
-        return "Could not retrieve knowledge (invalid JSON response)."
-
-    code = body.get("code")
-    if resp.status_code != 200 or (code is not None and code != 0):
-        msg = body.get("message") or body.get("msg") or resp.text or resp.reason
-        return f"Could not retrieve knowledge ({resp.status_code}, code={code}): {msg}"
-
-    chunks = _chunks_from_ragflow_response(body)
-    texts = []
-    for c in chunks:
-        if isinstance(c, dict) and c.get("content"):
-            texts.append(str(c["content"]))
-    return "\n\n".join(texts) if texts else ""
-
-
-def get_product():
-    """Return the current product and service catalog with prices."""
-    return (
-        "Products: Enterprise Suite $12,999/year, Team License $499/seat, "
-        "Premium Support $199/mo"
-    )
-
-
-def place_order(items: list, customer: str):
-    """Place an order for the given products or services for the named customer."""
-    now_utc = datetime.now(timezone.utc)
-    order_number = f"ORD-{now_utc.strftime('%Y%m%d-%H%M%S')}"
-    order_date = now_utc.strftime("%Y-%m-%d %H:%M:%S UTC")
-    return (
-        f"✅ Order placed! Order Number: {order_number} | Date: {order_date} | "
-        f"Items: {items} for {customer}"
-    )
-
-
-def create_ticket(title: str, desc: str):
-    """Create a support ticket with a short title and description."""
-    return f"✅ Ticket created: {title}"
-
-
-tools = [ragflow_retrieve, get_product, place_order, create_ticket]
-llm_with_tools = llm.bind_tools(tools)
-
-
-def agent_node(state: AgentState):
-    messages = [SystemMessage(content=AGENT_SYSTEM_PROMPT), *state["messages"]]
-
-    # Prefetch RAG context once per user turn so the model is grounded in KB data.
-    if state["messages"] and isinstance(state["messages"][-1], HumanMessage):
-        question = state["messages"][-1].content
-        rag_context = ragflow_retrieve(question)
-
-        rag_text = str(rag_context or "").strip()
-        is_error = rag_text.startswith("[error]")
-        is_empty = (not rag_text) or (rag_text == "[empty]")
-
-        # Retry once with a branded-prefix query when retrieval is empty (see RAG_BRAND_PREFIX).
-        if (
-            is_empty
-            and not is_error
-            and RAG_BRAND_PREFIX
-            and not should_skip_branded_prefix_retry(question)
-        ):
-            fallback_query = f"{RAG_BRAND_PREFIX} {question}"
-            rag_context_2 = ragflow_retrieve(fallback_query)
-            rag_text_2 = str(rag_context_2 or "").strip()
-            is_error_2 = rag_text_2.startswith("[error]")
-            is_empty_2 = (not rag_text_2) or (rag_text_2 == "[empty]")
-            if not is_error_2 and not is_empty_2:
-                rag_context = rag_context_2
-
-        messages.insert(
-            1,
-            SystemMessage(
-                content=(
-                    "RAG context from knowledge base:\n"
-                    f"{rag_context if rag_context else '[empty]'}"
-                )
-            ),
-        )
-
-    response = llm_with_tools.invoke(messages)
-    return {"messages": [response]}
-
-
-workflow = StateGraph(AgentState)
-workflow.add_node("agent", agent_node)
-workflow.add_node("tools", ToolNode(tools))
-workflow.set_entry_point("agent")
-workflow.add_conditional_edges(
-    "agent",
-    tools_condition,
-    {"tools": "tools", "__end__": END},
-)
-workflow.add_edge("tools", "agent")
-graph = workflow.compile()
-
-
 @app.post("/auth/token")
 async def issue_token():
     """Issue a short-lived JWT for the chat UI (protect JWT_SECRET in production)."""
@@ -343,7 +131,17 @@ async def transcribe_audio(
 
     filename = file.filename or "recording.webm"
     suffix = os.path.splitext(filename)[1].lower()
-    if suffix not in (".webm", ".mp3", ".wav", ".m4a", ".mp4", ".mpeg", ".mpga", ".oga", ".ogg"):
+    if suffix not in (
+        ".webm",
+        ".mp3",
+        ".wav",
+        ".m4a",
+        ".mp4",
+        ".mpeg",
+        ".mpga",
+        ".oga",
+        ".ogg",
+    ):
         suffix = ".webm"
 
     buf = BytesIO(raw)
@@ -352,10 +150,7 @@ async def transcribe_audio(
 
     try:
         client = OpenAI(api_key=api_key)
-        tr = client.audio.transcriptions.create(
-            model=WHISPER_MODEL,
-            file=buf,
-        )
+        tr = client.audio.transcriptions.create(model=WHISPER_MODEL, file=buf)
     except Exception as exc:
         raise HTTPException(
             status_code=502,
@@ -368,11 +163,88 @@ async def transcribe_audio(
 
 @app.post("/chat")
 async def chat(req: ChatRequest, _: None = Depends(verify_jwt)):
-    user_message = req.message
-    result = graph.invoke({"messages": [HumanMessage(content=user_message)]})
-    last = result["messages"][-1]
-    text = getattr(last, "content", None) or ""
-    return {"response": text if str(text).strip() else "I couldn’t generate a reply. Please try again."}
+    config, tid = _thread_config(req.thread_id)
+    result = _graph().invoke(
+        {"messages": [HumanMessage(content=req.message)]},
+        config=config,
+    )
+    return {"response": _final_text(result), "thread_id": tid}
+
+
+@app.post("/chat/stream")
+async def chat_stream(req: ChatRequest, _: None = Depends(verify_jwt)):
+    """SSE stream of assistant tokens (+ optional status events)."""
+    config, tid = _thread_config(req.thread_id)
+    graph = _graph()
+
+    def event_gen():
+        yield f"event: meta\ndata: {json.dumps({'thread_id': tid})}\n\n"
+        assembled = ""
+        try:
+            for item in graph.stream(
+                {"messages": [HumanMessage(content=req.message)]},
+                config=config,
+                stream_mode="messages",
+            ):
+                # LangGraph may yield (message, metadata) tuples
+                if isinstance(item, tuple) and len(item) >= 1:
+                    message = item[0]
+                    meta = item[1] if len(item) > 1 and isinstance(item[1], dict) else {}
+                else:
+                    message = item
+                    meta = {}
+
+                node = meta.get("langgraph_node") or meta.get("checkpoint_ns") or ""
+                if isinstance(message, (AIMessageChunk, AIMessage)):
+                    # Skip pure tool-call chunks without text
+                    content = message.content
+                    if isinstance(content, list):
+                        parts = []
+                        for p in content:
+                            if isinstance(p, dict) and p.get("type") == "text":
+                                parts.append(p.get("text") or "")
+                            elif isinstance(p, str):
+                                parts.append(p)
+                        content = "".join(parts)
+                    text = content if isinstance(content, str) else ""
+                    if text:
+                        assembled += text
+                        yield f"event: token\ndata: {json.dumps({'text': text})}\n\n"
+                    elif node == "tools" or getattr(message, "tool_calls", None):
+                        yield f"event: status\ndata: {json.dumps({'status': 'working'})}\n\n"
+            if not assembled.strip():
+                # Fallback: read final state
+                snap = graph.get_state(config)
+                values = snap.values if snap else {}
+                msgs = values.get("messages") or []
+                if msgs:
+                    assembled = str(getattr(msgs[-1], "content", "") or "")
+                if assembled.strip():
+                    yield f"event: token\ndata: {json.dumps({'text': assembled})}\n\n"
+                else:
+                    yield (
+                        "event: token\ndata: "
+                        + json.dumps(
+                            {
+                                "text": "I couldn’t generate a reply. Please try again."
+                            }
+                        )
+                        + "\n\n"
+                    )
+            yield f"event: done\ndata: {json.dumps({'thread_id': tid})}\n\n"
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("stream failed")
+            yield f"event: error\ndata: {json.dumps({'detail': str(exc)})}\n\n"
+
+    return StreamingResponse(
+        event_gen(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @app.post("/tts")
@@ -404,4 +276,4 @@ async def synthesize_speech(req: TtsRequest, _: None = Depends(verify_jwt)):
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run("backend.app:app", host="0.0.0.0", port=8000, reload=True)

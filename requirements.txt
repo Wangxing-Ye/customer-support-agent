@@ -2,6 +2,7 @@ fastapi
 uvicorn
 python-multipart
 langgraph
+langgraph-checkpoint-postgres
 langchain-openai
 langchain-core
 requests
@@ -9,3 +10,5 @@ python-dotenv
 PyJWT
 pydantic>=2
 openai>=1.0.0
+sqlalchemy>=2
+psycopg[binary,pool]>=3.1

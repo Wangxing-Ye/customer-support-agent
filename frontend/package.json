@@ -1,5 +1,5 @@
 {
-  "name": "abc-support-frontend",
+  "name": "pst-support-frontend",
   "private": true,
   "type": "module",
   "scripts": {
@@ -9,9 +9,12 @@
   },
   "dependencies": {
     "dompurify": "^3.1.6",
-    "marked": "^11.2.0"
+    "marked": "^11.2.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
     "vite": "^6.0.0"
   }
 }

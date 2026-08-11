@@ -1,11 +1,6 @@
 import { MAX_WORDS } from "./config.js";
 import { wordCount } from "./utils.js";
-import { fetchChat, fetchTranscribe, playAssistantAudio } from "./api.js";
-import {
-  addMessage,
-  showTypingIndicator,
-  removeTypingIndicator,
-} from "./messages.js";
+import { fetchTranscribe } from "./api.js";
 
 let voiceListening = false;
 let mediaRecorder = null;
@@ -22,11 +17,8 @@ function setVoiceButtonRecording(recording) {
   );
   if (recording) {
     btn.classList.add("recording");
-    btn.innerHTML =
-      '<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8" fill="currentColor"/></svg>';
   } else {
     btn.classList.remove("recording");
-    btn.textContent = "🎤";
   }
 }
 
@@ -41,6 +33,10 @@ function pickAudioMimeType() {
     if (MediaRecorder.isTypeSupported(c[i])) return c[i];
   }
   return "";
+}
+
+function bridge() {
+  return window.__pstChat || null;
 }
 
 export async function toggleVoice() {
@@ -95,8 +91,9 @@ export async function toggleVoice() {
     const blobType = mediaRecorder.mimeType || "audio/webm";
     const blob = new Blob(audioChunks, { type: blobType });
     audioChunks = [];
+    const ui = bridge();
     if (blob.size < 512) {
-      addMessage(
+      ui?.addMessage?.(
         "Recording too short. Hold the button, speak, then tap again to stop.",
         true,
       );
@@ -114,42 +111,31 @@ export async function toggleVoice() {
         } catch {
           /* ignore */
         }
-        addMessage(detail, true);
+        ui?.addMessage?.(detail, true);
         return;
       }
       const data = await res.json();
       transcribed = String(data.text || "").trim();
       if (!transcribed) {
-        addMessage("No speech detected. Please try again.", true);
+        ui?.addMessage?.("No speech detected. Please try again.", true);
         return;
       }
       if (wordCount(transcribed) > MAX_WORDS) {
-        addMessage(
+        ui?.addMessage?.(
           `Voice input must be at most ${MAX_WORDS} words. Please try a shorter question.`,
           true,
         );
         return;
       }
-      addMessage(transcribed, false);
     } catch {
-      addMessage("Sorry, transcription failed. Please try again.", true);
+      ui?.addMessage?.("Sorry, transcription failed. Please try again.", true);
       return;
     }
 
-    const typing = showTypingIndicator();
-    try {
-      const resChat = await fetchChat(transcribed);
-      if (!resChat.ok) throw new Error("Bad response");
-      const chatData = await resChat.json();
-      const reply =
-        chatData.response != null ? String(chatData.response) : "";
-      const finalReply = reply || "(No response)";
-      addMessage(finalReply, true);
-      playAssistantAudio(finalReply);
-    } catch {
-      addMessage("Sorry, something went wrong. Please try again.", true);
-    } finally {
-      removeTypingIndicator(typing);
+    if (ui?.sendVoiceTranscript) {
+      await ui.sendVoiceTranscript(transcribed);
+    } else {
+      ui?.addMessage?.(transcribed, false);
     }
   };
 

@@ -1,11 +1,49 @@
-OPENAI_API_KEY=sk-proj-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+OPENAI_API_KEY=sk-proj-xxxxxxxx
 OPENAI_MODEL=gpt-5.4-mini
-RAGFLOW_API_KEY=ragflow--P8KYfButWSN6n85S-B-cTB-wXnEcDeppUQ_t2wteec
-KNOWLEDGE_BASE_ID=5f79d7ce48db11f1bf19bf1ca9abdca5
+JWT_SECRET=change-me-to-a-long-random-string
+CORS_ORIGINS=http://127.0.0.1:3000,http://localhost:3000,http://127.0.0.1:4173,http://localhost:4173
+
+# Firm branding (single-tenant demo)
+FIRM_NAME=Summit Advisory Group
+FIRM_TIMEZONE=America/Los_Angeles
+FIRM_WEBSITE=https://www.SummitAdvisoryGroup.com
+RAG_BRAND_PREFIX=Summit Advisory Group
+RAG_BRAND_RETRY_SKIP_SUBSTRINGS=
+
+# PostgreSQL (preferred)
+# docker compose up -d
+# Docker maps container 5432 -> host 5433 (avoids Homebrew Postgres on 5432)
+DATABASE_URL=postgresql+psycopg://pst:pst@127.0.0.1:5433/pst_agent
+CHECKPOINT_DATABASE_URL=postgresql://pst:pst@127.0.0.1:5433/pst_agent
+# Local smoke without Docker:
+# USE_SQLITE=true
+
+# RAGFlow
 RAGFLOW_URL=http://127.0.0.1:8888
-JWT_SECRET=1fd429f2e2492e02c209c3f77e1555a4b89129c93ebb346f57bc59e21a076ee4
-CORS_ORIGINS=http://127.0.0.1:3000,http://localhost:3000,http://127.0.0.1:4173,http://localhost:4173,http://127.0.0.1:8000,http://localhost:8000,http://127.0.0.1:8888,http://localhost:8888
+RAGFLOW_API_KEY=
+KNOWLEDGE_BASE_ID=
+RAGFLOW_SIMILARITY_THRESHOLD=0.2
+RAGFLOW_KEYWORD=true
+RAGFLOW_RETRIEVAL_LOWERCASE=true
+
+# Email: console | smtp | resend
+EMAIL_PROVIDER=resend
+EMAIL_FROM=onboarding@resend.dev
+RESEND_API_KEY=
+# SMTP_HOST=
+# SMTP_PORT=587
+# SMTP_USER=
+# SMTP_PASSWORD=
+
+MEETING_LINK=https://us04web.zoom.us/j/7154373528?pwd=c1NLYW1kRXQxa1RPZGlWbVJDOEZzUT09
+
+# Scheduling / tickets
+CANCEL_WINDOW_HOURS=24
+CANCEL_CODE_MAX_ATTEMPTS=5
+BUSINESS_HOURS_START=9
+BUSINESS_HOURS_END=17
+MAX_MESSAGE_WORDS=150
+
 TTS_MODEL=tts-1
 TTS_VOICE=alloy
-RAG_BRAND_PREFIX=ABC
-RAG_BRAND_RETRY_SKIP_SUBSTRINGS=
+WHISPER_MODEL=whisper-1

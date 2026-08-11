@@ -1,0 +1,95 @@
+"""Application configuration from environment."""
+from __future__ import annotations
+
+import os
+
+from dotenv import load_dotenv
+
+load_dotenv()
+
+MAX_MESSAGE_WORDS = int(os.getenv("MAX_MESSAGE_WORDS", "150"))
+
+JWT_SECRET = os.getenv("JWT_SECRET")
+JWT_ALGORITHM = "HS256"
+JWT_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "1440"))
+
+_default_origins = (
+    "http://127.0.0.1:3000,http://localhost:3000,"
+    "http://127.0.0.1:4173,http://localhost:4173,"
+    "http://127.0.0.1:5500,http://localhost:5500,"
+    "http://127.0.0.1:8080,http://localhost:8080,"
+    "http://127.0.0.1:8000,http://localhost:8000"
+)
+CORS_ORIGINS = [
+    o.strip()
+    for o in os.getenv("CORS_ORIGINS", _default_origins).split(",")
+    if o.strip()
+]
+
+# Set USE_SQLITE=true for local smoke tests without Docker Postgres.
+_use_sqlite = os.getenv("USE_SQLITE", "false").lower() in ("1", "true", "yes")
+if _use_sqlite:
+    DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+pysqlite:///./pst_agent.db")
+    CHECKPOINT_DATABASE_URL = os.getenv("CHECKPOINT_DATABASE_URL", "")
+else:
+    DATABASE_URL = os.getenv(
+        "DATABASE_URL",
+        "postgresql+psycopg://pst:pst@127.0.0.1:5433/pst_agent",
+    )
+    # LangGraph checkpoint needs a plain postgres URL (no +psycopg).
+    CHECKPOINT_DATABASE_URL = os.getenv(
+        "CHECKPOINT_DATABASE_URL",
+        DATABASE_URL.replace("postgresql+psycopg://", "postgresql://").replace(
+            "postgresql+psycopg2://", "postgresql://"
+        ),
+    )
+
+FIRM_NAME = os.getenv("FIRM_NAME", "Summit Advisory Group").strip() or "Summit Advisory Group"
+FIRM_TIMEZONE = os.getenv("FIRM_TIMEZONE", "America/Los_Angeles").strip()
+FIRM_WEBSITE = (
+    os.getenv("FIRM_WEBSITE", "https://www.SummitAdvisoryGroup.com").strip()
+    or "https://www.SummitAdvisoryGroup.com"
+)
+BUSINESS_HOURS_START = int(os.getenv("BUSINESS_HOURS_START", "9"))
+BUSINESS_HOURS_END = int(os.getenv("BUSINESS_HOURS_END", "17"))
+CANCEL_WINDOW_HOURS = int(os.getenv("CANCEL_WINDOW_HOURS", "24"))
+CANCEL_CODE_MAX_ATTEMPTS = int(os.getenv("CANCEL_CODE_MAX_ATTEMPTS", "5"))
+CANCEL_CODE_PEPPER = os.getenv("CANCEL_CODE_PEPPER", JWT_SECRET or "dev-pepper-change-me")
+
+RAGFLOW_URL = os.getenv("RAGFLOW_URL", "http://127.0.0.1:9222").rstrip("/")
+RAGFLOW_API_KEY = os.getenv("RAGFLOW_API_KEY")
+KNOWLEDGE_BASE_ID = os.getenv("KNOWLEDGE_BASE_ID")
+RAGFLOW_SIMILARITY_THRESHOLD = float(os.getenv("RAGFLOW_SIMILARITY_THRESHOLD", "0.2"))
+RAGFLOW_KEYWORD = os.getenv("RAGFLOW_KEYWORD", "true").lower() in ("1", "true", "yes")
+RAGFLOW_RETRIEVAL_LOWERCASE = os.getenv("RAGFLOW_RETRIEVAL_LOWERCASE", "true").lower() in (
+    "1",
+    "true",
+    "yes",
+)
+RAG_BRAND_PREFIX = os.getenv("RAG_BRAND_PREFIX", FIRM_NAME).strip()
+_raw_brand_skip = os.getenv("RAG_BRAND_RETRY_SKIP_SUBSTRINGS")
+if _raw_brand_skip is None:
+    _raw_brand_skip = ""
+RAG_BRAND_RETRY_SKIP_SUBSTRINGS = [
+    s.strip().lower() for s in _raw_brand_skip.split(",") if s.strip()
+]
+
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.4-mini")
+WHISPER_MODEL = os.getenv("WHISPER_MODEL", "whisper-1")
+TTS_MODEL = os.getenv("TTS_MODEL", "tts-1")
+TTS_VOICE = os.getenv("TTS_VOICE", "alloy")
+
+EMAIL_PROVIDER = os.getenv("EMAIL_PROVIDER", "console").lower()  # console | smtp | resend
+EMAIL_FROM = os.getenv("EMAIL_FROM", f"noreply@{FIRM_NAME.lower().replace(' ', '')}.example")
+SMTP_HOST = os.getenv("SMTP_HOST", "")
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USER = os.getenv("SMTP_USER", "")
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
+SMTP_USE_TLS = os.getenv("SMTP_USE_TLS", "true").lower() in ("1", "true", "yes")
+RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
+MEETING_LINK = os.getenv(
+    "MEETING_LINK",
+    "https://us04web.zoom.us/j/7154373528?pwd=c1NLYW1kRXQxa1RPZGlWbVJDOEZzUT09",
+).strip()
+
+TICKET_DEDUP_HOURS = int(os.getenv("TICKET_DEDUP_HOURS", "24"))
