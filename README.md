@@ -4,6 +4,8 @@ AI client-services assistant for a **US professional services** demo firm — **
 
 This is a **single-tenant** demo. It does **not** place product orders.
 
+![Client services chat widget](docs/screenshot-chat.png)
+
 ## Background
 
 US **Professional, Scientific, and Technical Services** (NAICS 54) includes about **4.88 million** small businesses (SBA Office of Advocacy 2025 profile, Census 2022). About **82%** have no paid employees; the rest are mostly 1–19 person shops. Owners still answer the same questions about services, pricing, and availability, and they lose leads when a chat does not become a booked consult—or when an unresolved request never becomes a follow-up.
