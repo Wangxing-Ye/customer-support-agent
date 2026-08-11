@@ -4,6 +4,20 @@ AI client-services assistant for a **US professional services** demo firm — **
 
 This is a **single-tenant** demo. It does **not** place product orders.
 
+## Background
+
+US **Professional, Scientific, and Technical Services** (NAICS 54) includes about **4.88 million** small businesses (SBA Office of Advocacy 2025 profile, Census 2022). About **82%** have no paid employees; the rest are mostly 1–19 person shops. Owners still answer the same questions about services, pricing, and availability, and they lose leads when a chat does not become a booked consult—or when an unresolved request never becomes a follow-up.
+
+This repo is a **lightweight, professional, shippable Client Services Agent** for that kind of firm. It is not a generic auto-reply bot. The demo tenant is **Summit Advisory Group**. The assistant grounds answers in a firm knowledge base (RAGFlow), books or cancels appointments, and escalates to a human via a support ticket. It does **not** place product orders and does **not** give licensed legal, tax, or medical advice.
+
+It is built so the owner can:
+
+- **Spend less time on repeat intake** — policy and catalog answers come from RAG; the widget handles text and voice.
+- **Turn free chat into paid work** — show services and prices, offer one complimentary intro consult per email, book Strategy Sessions on the hour, and route Document Review through a ticket instead of an open-ended thread.
+- **Not lose the question** — if the user wants a person or the agent cannot resolve it, `create_ticket` stores the question, email, phone, and call window, computes `respond_by`, and emails the client a receipt. (Staff inbox notify is not in this release.)
+
+Phase 1 is **single-tenant**: one firm, Postgres, outbound email, embeddable chat. Multi-tenant white-label and inbox tools are out of scope.
+
 ## Features (phase 1)
 
 - Service catalog with pricing, photos, and bookable vs ticket-only services
