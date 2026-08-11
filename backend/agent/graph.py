@@ -24,7 +24,7 @@ class AgentState(TypedDict):
     messages: Annotated[List, operator.add]
 
 
-llm = ChatOpenAI(model=OPENAI_MODEL, temperature=0)
+llm = ChatOpenAI(model=OPENAI_MODEL, temperature=0, reasoning_effort="none")
 llm_with_tools = llm.bind_tools(TOOLS)
 
 
