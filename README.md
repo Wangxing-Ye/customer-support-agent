@@ -20,6 +20,17 @@ It is built so the owner can:
 
 Phase 1 is **single-tenant**: one firm, Postgres, outbound email, embeddable chat. Multi-tenant white-label and inbox tools are out of scope.
 
+## Other appointment businesses
+
+The same front desk — catalog, booking, pay-when, and tickets — can serve other small appointment businesses, not only Summit Advisory Group. Swap firm env, `BRAND`, service catalog, and the local knowledge-base Markdown. Examples:
+
+1. Dental clinic — [Columbia Dental Care](https://www.columbia-dentalcare.com/)
+2. Spa / beauty — [Geranium Spa](https://geraniumspa.com/)
+3. Sports venue — [Synergy Badminton](https://www.synergybadminton.com/)
+4. Education / classes — [Green Forest Art Studio](https://greenforestartstudio.com/)
+
+This repo still ships as a **single-tenant** Summit demo. Stripe, multi-staff capacity, and a live second tenant are not included.
+
 ## Features (phase 1)
 
 - Service catalog with pricing, photos, and bookable vs ticket-only services
