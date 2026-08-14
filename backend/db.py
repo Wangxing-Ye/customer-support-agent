@@ -45,6 +45,13 @@ def ensure_schema() -> None:
         "ALTER TABLE tickets ADD COLUMN phone VARCHAR(32) DEFAULT ''",
         "ALTER TABLE tickets ADD COLUMN preferred_call_window VARCHAR(128) DEFAULT ''",
         "ALTER TABLE services ADD COLUMN image_url VARCHAR(256) DEFAULT ''",
+        "ALTER TABLE services ADD COLUMN price_cents INTEGER DEFAULT 0",
+        "ALTER TABLE services ADD COLUMN currency VARCHAR(8) DEFAULT 'USD'",
+        "ALTER TABLE services ADD COLUMN pay_when VARCHAR(32) DEFAULT 'none'",
+        "ALTER TABLE services ADD COLUMN fulfillment VARCHAR(16) DEFAULT 'online'",
+        "ALTER TABLE services ADD COLUMN location_text VARCHAR(512) DEFAULT ''",
+        "ALTER TABLE appointments ADD COLUMN payment_due_at TIMESTAMPTZ",
+        "ALTER TABLE appointments ADD COLUMN payment_due_at DATETIME",
     ]
     for sql in stmts:
         try:

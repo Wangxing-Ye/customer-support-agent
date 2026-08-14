@@ -1,24 +1,28 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { MAX_WORDS, FIRM_NAME } from "../config.js";
+import { MAX_WORDS, BRAND, brandActionText } from "../config.js";
 import { wordCount } from "../utils.js";
 import { streamChat, fetchChat, playAssistantAudio } from "../api.js";
 import { renderBotMarkdown } from "../markdown.js";
 import { ensureToken } from "../auth.js";
 import { toggleVoice } from "../voice.js";
 
-const QUICK = [
-  { label: "Services Introduction", text: "What services does Summit Advisory Group offer?" },
-  {
-    label: "Book appointment",
-    text: "I'd like to book an appointment. Please list the bookable services and let me choose one.",
-  },
-  { label: "Cancel appointment", text: "I need to cancel my appointment." },
-  {
-    label: "Support Ticket",
-    text: "Please create a support ticket. I will provide my question or request, email, phone number, and a convenient time to call.",
-  },
-];
+function WidgetHeader() {
+  return (
+    <div className="header">
+      <div className="avatar">
+        <img src={BRAND.avatarSrc} alt={BRAND.avatarAlt} />
+      </div>
+      <div>
+        <div className="header-title-row">
+          <h2>{BRAND.widgetTitle}</h2>
+          <span className="version-label">{BRAND.version}</span>
+        </div>
+        <p>{BRAND.widgetSubtitle}</p>
+      </div>
+    </div>
+  );
+}
 
 function MessageBubble({ role, text, streaming }) {
   const isBot = role === "bot";
@@ -94,7 +98,7 @@ function ChatApp() {
           {
             id: "welcome",
             role: "bot",
-            text: `Hi! I'm the client services assistant for ${FIRM_NAME}. I can help with our services, booking or cancelling appointments, and creating a support ticket when needed.`,
+            text: BRAND.greeting(BRAND.firmName),
           },
         ]);
       } catch {
@@ -232,22 +236,29 @@ function ChatApp() {
 
   if (authError) {
     return (
-      <div className="chat-body" ref={bodyRef}>
-        <MessageBubble role="bot" text={authError} />
+      <div className="chat-container">
+        <WidgetHeader />
+        <div className="widget-body">
+          <div className="chat-body" ref={bodyRef}>
+            <MessageBubble role="bot" text={authError} />
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <>
+    <div className="chat-container">
+      <WidgetHeader />
+      <div className="widget-body">
       <div className="quick-actions">
-        {QUICK.map((q) => (
+        {BRAND.quickActions.map((q) => (
           <button
             key={q.label}
             type="button"
             className="quick-btn"
             disabled={busy}
-            onClick={() => send(q.text)}
+            onClick={() => send(brandActionText(q))}
           >
             {q.label}
           </button>
@@ -332,11 +343,13 @@ function ChatApp() {
           onClose={() => setLightbox(null)}
         />
       ) : null}
-    </>
+      </div>
+    </div>
   );
 }
 
 export function mountChatWidget(el) {
+  document.title = BRAND.widgetTitle;
   const root = createRoot(el);
   root.render(<ChatApp />);
   return root;

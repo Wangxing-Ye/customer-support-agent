@@ -30,6 +30,11 @@ class Service(Base):
     bookable: Mapped[bool] = mapped_column(Boolean, default=True)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     image_url: Mapped[str] = mapped_column(String(256), default="")
+    price_cents: Mapped[int] = mapped_column(Integer, default=0)
+    currency: Mapped[str] = mapped_column(String(8), default="USD")
+    pay_when: Mapped[str] = mapped_column(String(32), default="none")
+    fulfillment: Mapped[str] = mapped_column(String(16), default="online")
+    location_text: Mapped[str] = mapped_column(String(512), default="")
 
 
 class AvailabilityRule(Base):
@@ -62,6 +67,7 @@ class Appointment(Base):
         DateTime(timezone=True), server_default=func.now()
     )
     cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    payment_due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     service: Mapped[Service] = relationship("Service")
 

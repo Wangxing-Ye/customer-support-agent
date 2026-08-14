@@ -15,9 +15,12 @@ from backend.config import (
     CANCEL_CODE_MAX_ATTEMPTS,
     CANCEL_CODE_PEPPER,
     CANCEL_WINDOW_HOURS,
+    FIRM_LOCATION,
     FIRM_NAME,
     FIRM_TIMEZONE,
     MEETING_LINK,
+    PAYMENT_HOLD_MINUTES,
+    PUBLIC_BASE_URL,
 )
 from backend.models import Appointment, AvailabilityRule, Service
 from backend.services.email import send_template_email
@@ -93,22 +96,32 @@ SERVICE_CATALOG = {
     "intro-consult": {
         "name": "Introductory Consultation",
         "description": (
-            "Complimentary 30-minute discovery call to discuss your needs. "
-            "Each client is eligible for one free Introductory Consultation only."
+            "Complimentary 30-minute discovery call to discuss your needs."
         ),
         "duration_minutes": 30,
         "bookable": True,
-        "price": "Free (one 30-minute session per client)",
+        "price": "Free (30 minutes)",
+        "price_cents": 0,
+        "currency": "USD",
+        "pay_when": "none",
+        "fulfillment": "online",
+        "location_text": "",
     },
     "strategy-session": {
         "name": "Strategy Session",
         "description": (
             "One-hour working session with a senior advisor. "
-            "Priced at USD 500 per hour; each Strategy Session is one hour."
+            "Priced at USD 500 per hour; each Strategy Session is one hour. "
+            "The slot is held for 15 minutes until payment (demo checkout)."
         ),
         "duration_minutes": 60,
         "bookable": True,
         "price": "USD 500 per hour (1 hour per session)",
+        "price_cents": 50000,
+        "currency": "USD",
+        "pay_when": "checkout_to_hold",
+        "fulfillment": "online",
+        "location_text": "",
     },
     "document-review": {
         "name": "Document Review",
@@ -119,8 +132,52 @@ SERVICE_CATALOG = {
         "duration_minutes": 60,
         "bookable": False,
         "price": "USD 250 per hour, detailed email feedback (request via ticket)",
+        "price_cents": 25000,
+        "currency": "USD",
+        "pay_when": "none",
+        "fulfillment": "online",
+        "location_text": "",
     },
 }
+
+
+def service_pay_when(service: Service) -> str:
+    raw = (getattr(service, "pay_when", None) or "none").strip().lower()
+    if raw in ("none", "checkout_to_hold", "pay_on_arrival"):
+        return raw
+    return "none"
+
+
+def service_fulfillment(service: Service) -> str:
+    raw = (getattr(service, "fulfillment", None) or "online").strip().lower()
+    return "in_person" if raw == "in_person" else "online"
+
+
+def delivery_location(service: Service) -> str:
+    if service_fulfillment(service) == "in_person":
+        return (getattr(service, "location_text", None) or "").strip() or FIRM_LOCATION
+    return MEETING_LINK
+
+
+def checkout_url_for(appointment_id: str) -> str:
+    return f"{PUBLIC_BASE_URL}/pay/simulate/{appointment_id}"
+
+
+def expire_stale_holds(session: Session) -> None:
+    now = datetime.now(timezone.utc)
+    rows = session.scalars(
+        select(Appointment).where(Appointment.status == "pending_payment")
+    ).all()
+    for appt in rows:
+        due = appt.payment_due_at
+        if due is None:
+            appt.status = "expired"
+            continue
+        if due.tzinfo is None:
+            due = due.replace(tzinfo=ZoneInfo(FIRM_TIMEZONE)).astimezone(timezone.utc)
+        if due <= now:
+            appt.status = "expired"
+    session.flush()
 
 
 def service_image_url(service: Service) -> str:
@@ -145,10 +202,16 @@ def list_services(session: Session) -> str:
         spec = SERVICE_CATALOG.get(s.slug) or {}
         price = spec.get("price") or ""
         price_line = f"Price: {price}\n" if price else ""
+        pay = service_pay_when(s)
+        ful = service_fulfillment(s)
+        loc = delivery_location(s)
+        loc_line = f"Location: {loc}\n" if loc else ""
         blocks.append(
             f"### {s.name}\n"
             f"Slug: `{s.slug}` · {s.duration_minutes} min · {bookable}\n"
             f"{price_line}"
+            f"Pay when: `{pay}` · Fulfillment: `{ful}`\n"
+            f"{loc_line}"
             f"{s.description}\n"
             f"![{s.name}]({img})\n"
         )
@@ -187,14 +250,15 @@ def _open_slot_datetimes(
         return []
 
     duration = timedelta(minutes=service.duration_minutes)
-    booked = session.scalars(
+    expire_stale_holds(session)
+    occupying = session.scalars(
         select(Appointment).where(
-            Appointment.status == "booked",
+            Appointment.status.in_(("booked", "pending_payment")),
             Appointment.starts_at < end,
             Appointment.ends_at > start,
         )
     ).all()
-    booked_starts = {a.starts_at.astimezone(tz).replace(second=0, microsecond=0) for a in booked}
+    booked_starts = {a.starts_at.astimezone(tz).replace(second=0, microsecond=0) for a in occupying}
 
     open_slots: list[datetime] = []
     day = start.astimezone(tz).replace(hour=0, minute=0, second=0, microsecond=0)
@@ -287,6 +351,9 @@ def book_appointment(
     email = normalize_email(customer_email)
     if not email or "@" not in email:
         return "[error] A valid customer_email is required to book."
+    name = (customer_name or "").strip()
+    if len(name) < 2:
+        return "[error] customer_name is required (at least 2 characters)."
 
     service = session.scalar(
         select(Service).where(Service.slug == service_slug, Service.active.is_(True))
@@ -315,9 +382,10 @@ def book_appointment(
             "[error] That time is not available. Call list_availability and pick an open slot."
         )
 
+    expire_stale_holds(session)
     conflict = session.scalar(
         select(Appointment).where(
-            Appointment.status == "booked",
+            Appointment.status.in_(("booked", "pending_payment")),
             Appointment.starts_at < ends,
             Appointment.ends_at > starts,
         )
@@ -325,26 +393,47 @@ def book_appointment(
     if conflict:
         return "[error] That time was just taken. Please pick another slot."
 
-    if service.slug == "intro-consult":
-        prior = session.scalar(
-            select(Appointment).where(
-                Appointment.customer_email == email,
-                Appointment.service_id == service.id,
-            )
+    pay_when = service_pay_when(service)
+    appt_id = generate_appointment_id(starts)
+
+    if pay_when == "checkout_to_hold":
+        due = datetime.now(timezone.utc) + timedelta(minutes=PAYMENT_HOLD_MINUTES)
+        appt = Appointment(
+            appointment_id=appt_id,
+            service_id=service.id,
+            customer_name=name,
+            customer_email=email,
+            starts_at=starts,
+            ends_at=ends,
+            status="pending_payment",
+            cancel_code_hash=None,
+            cancel_code_attempts=0,
+            notes=notes or "",
+            payment_due_at=due,
         )
-        if prior:
-            return (
-                "[error] This email has already used the complimentary Introductory "
-                "Consultation (one free 30-minute session per client). "
-                "Please book a Strategy Session or request Document Review via a support ticket."
-            )
+        session.add(appt)
+        session.flush()
+        when_display = format_when(starts)
+        url = checkout_url_for(appt_id)
+        amount = getattr(service, "price_cents", 0) or 0
+        currency = (getattr(service, "currency", None) or "USD").upper()
+        dollars = amount / 100
+        return (
+            f"status=pending_payment appointment_id={appt_id} service={service.name} "
+            f"when={when_display} name={name} email={email} "
+            f"amount={currency} {dollars:.2f} "
+            f"payment_due_at={due.isoformat()} checkout_url={url} "
+            f"(Slot is HELD for {PAYMENT_HOLD_MINUTES} minutes, not confirmed. "
+            f"Do not say the appointment is confirmed. Give the user this checkout_url. "
+            f"When they say they have paid, call simulate_payment with this appointment_id and email. "
+            f"No cancellation code was sent yet.)"
+        )
 
     cancel_code = generate_cancel_code()
-    appt_id = generate_appointment_id(starts)
     appt = Appointment(
         appointment_id=appt_id,
         service_id=service.id,
-        customer_name=(customer_name or "").strip(),
+        customer_name=name,
         customer_email=email,
         starts_at=starts,
         ends_at=ends,
@@ -352,46 +441,125 @@ def book_appointment(
         cancel_code_hash=hash_cancel_code(cancel_code),
         cancel_code_attempts=0,
         notes=notes or "",
+        payment_due_at=None,
     )
     session.add(appt)
     session.flush()
+    return _send_confirmation_and_result(appt, service, cancel_code, pay_when)
 
-    when_display = format_when(starts)
+
+def _send_confirmation_and_result(
+    appt: Appointment,
+    service: Service,
+    cancel_code: str,
+    pay_when: str,
+) -> str:
+    name = appt.customer_name
+    email = appt.customer_email
+    loc = delivery_location(service)
+    ful = service_fulfillment(service)
+    when_display = format_when(appt.starts_at)
     cal_title = f"{service.name} — {FIRM_NAME}"
+    if ful == "in_person":
+        place_line = f"Location: {loc}\n"
+        cal_location = loc
+    else:
+        place_line = f"Meeting link: {loc}\n"
+        cal_location = loc
+    pay_line = "Pay at your visit.\n" if pay_when == "pay_on_arrival" else ""
     cal_details = (
-        f"Appointment ID: {appt_id}\n"
+        f"Appointment ID: {appt.appointment_id}\n"
         f"Service: {service.name}\n"
+        f"Client: {name}\n"
         f"With: {FIRM_NAME}\n"
-        f"Meeting link: {MEETING_LINK}\n"
+        f"{place_line}"
+        f"{pay_line}"
         f"Cancellation code: {cancel_code}"
     )
     google_cal_url = google_calendar_template_url(
         title=cal_title,
-        starts=starts,
-        ends=ends,
+        starts=appt.starts_at,
+        ends=appt.ends_at,
         details=cal_details,
-        location=MEETING_LINK,
+        location=cal_location,
     )
+    if ful == "in_person":
+        fulfillment_block = f"Location:\n{loc}\n\n"
+        agent_place = f"location={loc}"
+        email_hint = "the visit location"
+    else:
+        fulfillment_block = f"Meeting link (Zoom):\n{loc}\n\n"
+        agent_place = f"meeting_link={loc}"
+        email_hint = "the Zoom meeting link"
+    pay_note = "Pay at your visit.\n\n" if pay_when == "pay_on_arrival" else ""
     send_template_email(
         "appointment_confirmation",
         email,
         {
             "service_name": service.name,
             "when_display": when_display,
+            "customer_name": name,
             "customer_email": email,
-            "appointment_id": appt_id,
+            "appointment_id": appt.appointment_id,
             "cancel_code": cancel_code,
             "google_cal_url": google_cal_url,
-            "meeting_link": MEETING_LINK,
+            "fulfillment_block": fulfillment_block,
+            "pay_note": pay_note,
+            "meeting_link": loc,
         },
     )
-    return (
-        f"status=booked appointment_id={appt_id} service={service.name} "
-        f"when={when_display} email={email} "
-        f"cancel_code={cancel_code} meeting_link={MEETING_LINK} "
-        f"(A confirmation email was sent with the cancellation code and this Zoom meeting link. "
-        f"Tell the user the confirmation email includes the cancellation code and the meeting link: {MEETING_LINK})"
+    arrival = (
+        " Tell the user to pay at the visit."
+        if pay_when == "pay_on_arrival"
+        else f" Tell the user the confirmation email includes the cancellation code and {email_hint}: {loc}"
     )
+    return (
+        f"status=booked appointment_id={appt.appointment_id} service={service.name} "
+        f"when={when_display} name={name} email={email} "
+        f"cancel_code={cancel_code} {agent_place} fulfillment={ful} pay_when={pay_when} "
+        f"(A confirmation email was sent with the cancellation code.{arrival})"
+    )
+
+
+def simulate_payment(
+    session: Session,
+    appointment_id: str,
+    customer_email: str,
+) -> str:
+    """Demo-only: mark a pending_payment hold as paid and send confirmation."""
+    email = normalize_email(customer_email)
+    aid = (appointment_id or "").strip()
+    if not aid or not email or "@" not in email:
+        return "[error] appointment_id and a valid customer_email are required."
+
+    expire_stale_holds(session)
+    appt = session.scalar(select(Appointment).where(Appointment.appointment_id == aid))
+    if not appt or appt.customer_email != email:
+        return "[error] No matching appointment for that id and email."
+
+    if appt.status == "booked":
+        return (
+            f"status=booked appointment_id={appt.appointment_id} "
+            "(Already confirmed. Do not invent a new cancellation code.)"
+        )
+    if appt.status == "expired":
+        return (
+            "[error] The payment hold expired and the slot was released. "
+            "Call list_availability and book again."
+        )
+    if appt.status != "pending_payment":
+        return f"[error] Appointment is {appt.status}, not awaiting payment."
+
+    service = appt.service
+    if service is None:
+        return "[error] Appointment has no service catalog row."
+    cancel_code = generate_cancel_code()
+    appt.status = "booked"
+    appt.cancel_code_hash = hash_cancel_code(cancel_code)
+    appt.payment_due_at = None
+    session.flush()
+    pay_when = service_pay_when(service)
+    return _send_confirmation_and_result(appt, service, cancel_code, pay_when)
 
 
 def cancel_appointment(
@@ -493,6 +661,11 @@ def seed_defaults(session: Session) -> None:
                     duration_minutes=spec["duration_minutes"],
                     bookable=spec["bookable"],
                     image_url=image,
+                    price_cents=spec.get("price_cents", 0),
+                    currency=spec.get("currency", "USD"),
+                    pay_when=spec.get("pay_when", "none"),
+                    fulfillment=spec.get("fulfillment", "online"),
+                    location_text=spec.get("location_text", ""),
                 )
             )
         else:
@@ -502,6 +675,12 @@ def seed_defaults(session: Session) -> None:
             row.bookable = spec["bookable"]
             if not (getattr(row, "image_url", None) or "").strip():
                 row.image_url = image
+            row.price_cents = spec.get("price_cents", 0)
+            row.currency = spec.get("currency", "USD")
+            row.pay_when = spec.get("pay_when", "none")
+            row.fulfillment = spec.get("fulfillment", "online")
+            if spec.get("location_text") is not None:
+                row.location_text = spec.get("location_text", "")
 
     existing_rules = session.scalar(select(AvailabilityRule).limit(1))
     if not existing_rules:

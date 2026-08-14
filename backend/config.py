@@ -50,6 +50,9 @@ FIRM_WEBSITE = (
     os.getenv("FIRM_WEBSITE", "https://www.SummitAdvisoryGroup.com").strip()
     or "https://www.SummitAdvisoryGroup.com"
 )
+FIRM_LOCATION = os.getenv("FIRM_LOCATION", "").strip()
+PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
+PAYMENT_HOLD_MINUTES = int(os.getenv("PAYMENT_HOLD_MINUTES", "15"))
 BUSINESS_HOURS_START = int(os.getenv("BUSINESS_HOURS_START", "9"))
 BUSINESS_HOURS_END = int(os.getenv("BUSINESS_HOURS_END", "17"))
 CANCEL_WINDOW_HOURS = int(os.getenv("CANCEL_WINDOW_HOURS", "24"))
@@ -60,8 +63,8 @@ CANCEL_CODE_PEPPER = os.getenv("CANCEL_CODE_PEPPER", JWT_SECRET or "dev-pepper-c
 _raw_kb_provider = os.getenv("KB_PROVIDER", "auto").strip().lower()
 KB_PROVIDER = _raw_kb_provider if _raw_kb_provider in ("auto", "local", "ragflow") else "auto"
 KB_LOCAL_PATH = os.getenv(
-    "KB_LOCAL_PATH", "docs/sample_kb_professional_services.md"
-).strip() or "docs/sample_kb_professional_services.md"
+    "KB_LOCAL_PATH", "docs/Summit_Advisory_Group.md"
+).strip() or "docs/Summit_Advisory_Group.md"
 
 RAGFLOW_URL = os.getenv("RAGFLOW_URL", "http://127.0.0.1:9222").rstrip("/")
 RAGFLOW_API_KEY = os.getenv("RAGFLOW_API_KEY")

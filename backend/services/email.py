@@ -36,12 +36,13 @@ TEMPLATES = {
             "Appointment confirmed\n\n"
             "Service: {service_name}\n"
             "When: {when_display}\n"
+            "Name: {customer_name}\n"
             "Email: {customer_email}\n"
             "Appointment ID: {appointment_id}\n\n"
             "Cancellation code: {cancel_code}\n"
             "To cancel via chat, provide this email and cancellation code.\n\n"
-            "Meeting link (Zoom):\n"
-            "{meeting_link}\n\n"
+            "{fulfillment_block}"
+            "{pay_note}"
             "Add to Google Calendar:\n"
             "{google_cal_url}\n"
         ),
@@ -60,6 +61,7 @@ TEMPLATES = {
         "body": (
             "We received your request and created support ticket {ticket_id}.\n\n"
             "Your question / request:\n{summary}\n\n"
+            "Name: {name}\n"
             "Email: {email}\n"
             "Phone: {phone}\n"
             "Best time to call: {preferred_call_window}\n"
@@ -131,6 +133,8 @@ def send_template_email(template: str, to_email: str, context: dict[str, Any]) -
         "firm_name": FIRM_NAME,
         "timezone": FIRM_TIMEZONE,
         "meeting_link": MEETING_LINK,
+        "fulfillment_block": "",
+        "pay_note": "",
         **context,
     }
     if "respond_by" in ctx and "respond_by_display" not in ctx:

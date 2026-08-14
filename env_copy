@@ -7,6 +7,9 @@ CORS_ORIGINS=http://127.0.0.1:3000,http://localhost:3000,http://127.0.0.1:4173,h
 FIRM_NAME=Summit Advisory Group
 FIRM_TIMEZONE=America/Los_Angeles
 FIRM_WEBSITE=https://www.SummitAdvisoryGroup.com
+FIRM_LOCATION=
+PUBLIC_BASE_URL=http://127.0.0.1:8000
+PAYMENT_HOLD_MINUTES=15
 RAG_BRAND_PREFIX=Summit Advisory Group
 RAG_BRAND_RETRY_SKIP_SUBSTRINGS=
 
@@ -21,7 +24,7 @@ CHECKPOINT_DATABASE_URL=postgresql://pst:pst@127.0.0.1:5433/pst_agent
 # Knowledge base: auto | local | ragflow
 # auto = RAGFlow when API key + dataset id are set, otherwise local Markdown
 KB_PROVIDER=auto
-KB_LOCAL_PATH=docs/sample_kb_professional_services.md
+KB_LOCAL_PATH=docs/Summit_Advisory_Group.md
 # RAGFlow (optional; free self-hosted)
 RAGFLOW_URL=http://127.0.0.1:8888
 RAGFLOW_API_KEY=

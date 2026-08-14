@@ -8,15 +8,15 @@ This is a **single-tenant** demo. It does **not** place product orders.
 
 ## Background
 
-US **Professional, Scientific, and Technical Services** (NAICS 54) includes about **4.88 million** small businesses (SBA Office of Advocacy 2025 profile, Census 2022). About **82%** have no paid employees; the rest are mostly 1–19 person shops. Owners still answer the same questions about services, pricing, and availability, and they lose leads when a chat does not become a booked consult—or when an unresolved request never becomes a follow-up.
+**ServiceEmma** (*Your AI front desk for client services*) is the product name for this client-services agent. The same front desk — answer FAQs, turn inquiries into a booking, and open a ticket when the question cannot be resolved — applies across appointment businesses, not only consulting (NAICS 54). Dental, spa, sports venues, and classes share a catalog of services/courses/courts, a reservation, and a pay-when rule (hold with prepay, or pay on arrival). This repo’s runnable demo is still **single-tenant Summit Advisory Group** (online consults). Other verticals are in scope for the design below; they are not separate agents.
 
-This repo is a **lightweight, professional, shippable Client Services Agent** for that kind of firm. It is not a generic auto-reply bot. The demo tenant is **Summit Advisory Group**. The assistant grounds answers in a firm knowledge base (local Markdown by default; RAGFlow when configured), books or cancels appointments, and escalates to a human via a support ticket. It does **not** place product orders and does **not** give licensed legal, tax, or medical advice.
+This repo is a **lightweight, professional, shippable Client Services Agent**. It is not a generic auto-reply bot. The assistant grounds answers in a firm knowledge base (local Markdown by default; RAGFlow when configured), books or cancels appointments, and escalates to a human via a support ticket. It does **not** place product orders and does **not** give licensed legal, tax, or medical advice.
 
 It is built so the owner can:
 
 - **Spend less time on repeat intake** — policy and catalog answers come from RAG; the widget handles text and voice.
-- **Turn free chat into paid work** — show services and prices, offer one complimentary intro consult per email, book Strategy Sessions on the hour, and route Document Review through a ticket instead of an open-ended thread.
-- **Not lose the question** — if the user wants a person or the agent cannot resolve it, `create_ticket` stores the question, email, phone, and call window, computes `respond_by`, and emails the client a receipt. (Staff inbox notify is not in this release.)
+- **Turn free chat into paid work** — show services and prices, book a complimentary intro consult, book Strategy Sessions on the hour, and route Document Review through a ticket instead of an open-ended thread.
+- **Not lose the question** — if the user wants a person or the agent cannot resolve it, `create_ticket` stores the name, question, email, phone, and call window, computes `respond_by`, and emails the client a receipt. (Staff inbox notify is not in this release.)
 
 Phase 1 is **single-tenant**: one firm, Postgres, outbound email, embeddable chat. Multi-tenant white-label and inbox tools are out of scope.
 
@@ -24,12 +24,54 @@ Phase 1 is **single-tenant**: one firm, Postgres, outbound email, embeddable cha
 
 - Service catalog with pricing, photos, and bookable vs ticket-only services
 - On-the-hour availability (Mon–Fri, America/Los_Angeles; no noon / no half-hour starts)
-- Booking with confirmation email: cancellation code, Zoom meeting link, Google Calendar add-event URL
-- One complimentary Introductory Consultation per email
+- Booking with confirmation email: cancellation code, Zoom or in-person location, Google Calendar add-event URL
+- Pay-when: free intro confirms immediately; Strategy Session holds the slot until demo checkout (`simulate_payment`, not Stripe)
+- Complimentary Introductory Consultation (no per-email cap)
 - Cancel with **email + cancellation code** (hashed at rest; 24-hour self-service window)
-- Support tickets when the AI cannot resolve or the user wants a human: email, phone, preferred call window, question, server-computed **respond_by** SLA
+- Support tickets when the AI cannot resolve or the user wants a human: name, email, phone, preferred call window, question, server-computed **respond_by** SLA
 - Outbound email (`console` / `smtp` / `resend`) with a shared plaintext footer
 - Streaming chat widget (SSE): quick actions, markdown + service images + lightbox, typing dots, multiline input, Whisper / TTS voice path
+
+## Design: catalog, booking, pay-when
+
+Appointment businesses share three layers. This demo keeps **one** `Service` / `Appointment` shape. Summit intro consults confirm immediately on Zoom; Strategy Sessions use a **simulated** checkout hold. Stripe, capacity, and extra verticals are still **not covered**.
+
+### Catalog
+
+| | Phase 1 |
+|---|---|
+| Service name, duration, bookable vs ticket-only, photo | **Covered** (`services` + seed catalog) |
+| Price as display copy (e.g. USD 500 / hour) | **Covered** (catalog text plus `price_cents` / currency) |
+| `price_cents` + currency for checkout | **Covered** (fields present; checkout is simulated, not Stripe) |
+| `pay_when`: `none` \| `checkout_to_hold` \| `pay_on_arrival` | **Covered** (seed: intro=`none`, strategy=`checkout_to_hold`) |
+| `fulfillment`: `online` \| `in_person` (address vs meeting link) | **Covered** (`MEETING_LINK` or `FIRM_LOCATION` / `location_text`) |
+| Capacity &gt; 1 (court party, class seats) | **Not covered** (implicit capacity = 1) |
+| Location / staff / court as a bookable resource | **Not covered** |
+
+### Booking
+
+| | Phase 1 |
+|---|---|
+| Name + email, hourly open slots, confirm email, cancel code | **Covered** |
+| Status `booked` immediately when `pay_when` is `none` or `pay_on_arrival` | **Covered** |
+| Online meeting link + Google Calendar URL | **Covered** |
+| In-person location on the confirmation | **Covered** (when `fulfillment=in_person`) |
+| `pending_payment` / expire unpaid holds | **Covered** (15-minute hold; overdue → `expired`, slot free) |
+| Configurable hours (evenings, 90-minute services) | **Not covered** (fixed 9–11 AM and 1–5 PM PT) |
+| `party_size` | **Not covered** |
+
+### Pay-when
+
+| | Phase 1 |
+|---|---|
+| Free intro (skip payment) | **Covered** (complimentary consult; no per-email cap) |
+| Pay on arrival (book now, pay at the shop) | **Covered** (`pay_when=pay_on_arrival`; not used on Summit seed) |
+| Checkout to hold the slot (then `booked`) | **Covered** with **simulated** URL + `simulate_payment` (demo-only, not Stripe) |
+| Agent must not say “confirmed” until `status=booked` | **Covered** (prompt + tool `status=pending_payment` vs `booked`) |
+
+Cancel codes exist only after **booked**. Unpaid `pending_payment` rows expire; they cannot be cancelled with a code.
+
+**Still later:** Stripe Checkout / Connect webhooks, capacity / `party_size`, multi-location staff/courts as resources. Vertical differences (no clinical advice, child age in notes) belong in KB + these fields, not a new agent per NAICS.
 
 ## Architecture
 
@@ -45,17 +87,17 @@ Vite React widget → FastAPI → LangGraph agent
 
 | Service | Slug | Price | Booking |
 |---------|------|-------|---------|
-| Introductory Consultation | `intro-consult` | Free, 30 min, **one per client email** | Online |
-| Strategy Session | `strategy-session` | USD 500 / hour (1 hour) | Online |
+| Introductory Consultation | `intro-consult` | Free, 30 min | Online, confirm immediately (`pay_when=none`) |
+| Strategy Session | `strategy-session` | USD 500 / hour (1 hour) | Online, hold until demo payment (`checkout_to_hold`) |
 | Document Review | `document-review` | USD 250 / hour, email feedback | Support ticket only |
 
 Slots offered: **9, 10, 11 AM and 1–5 PM** PT. Photos live under `frontend/public/assets/` (`intro-consult.jpg`, `strategy-session.jpg`, `document-review.jpg`).
 
 ## Booking, cancel, tickets
 
-- **Book:** choose a bookable service → pick an open hourly slot → provide email. Confirmation email includes appointment ID, cancel code, Zoom `MEETING_LINK`, and a Google Calendar template URL. The agent reply also includes the meeting link.
+- **Book:** choose a bookable service → pick an open hourly slot → provide name and email. Confirmation email includes appointment ID, cancel code, Zoom `MEETING_LINK`, and a Google Calendar template URL. The agent reply also includes the meeting link.
 - **Cancel:** email used at booking **and** the cancel code. Self-service cancel is blocked within `CANCEL_WINDOW_HOURS` (default 24); the agent then opens a high-priority ticket.
-- **Ticket:** required email, phone (≥10 digits), preferred call window, and a question (≥10 characters). SLA is computed server-side (normal: next business-day end; high: 4 business hours, Mon–Fri 9–17 PT). Do not invent reply times — use `respond_by_display` from the tool.
+- **Ticket:** required name, email, phone (≥10 digits), preferred call window, and a question (≥10 characters). SLA is computed server-side (normal: next business-day end; high: 4 business hours, Mon–Fri 9–17 PT). Do not invent reply times — use `respond_by_display` from the tool.
 
 ## Outbound email
 
@@ -74,7 +116,7 @@ Firm name and site come from `FIRM_NAME` and `FIRM_WEBSITE`.
 
 Open http://localhost:3000 after starting frontend + backend.
 
-Quick actions: **Services Introduction**, **Book appointment**, **Cancel appointment**, **Support Ticket**. Text chat uses `POST /chat/stream` (SSE). Voice uses `POST /chat` then TTS. Service images in replies can be clicked to enlarge.
+Header title, subtitle, greeting, and quick-action chips come from `BRAND` in [frontend/src/config.js](frontend/src/config.js). Change that object for another appointment business; keep the same agent. Default chips: **Services Introduction**, **Book appointment**, **Cancel appointment**, **Support Ticket**. Text chat uses `POST /chat/stream` (SSE). Voice uses `POST /chat` then TTS. Service images in replies can be clicked to enlarge.
 
 ## Quick start
 
@@ -131,7 +173,7 @@ Open http://localhost:3000
 `KB_PROVIDER=auto` (default):
 
 - If `RAGFLOW_API_KEY` and `KNOWLEDGE_BASE_ID` are set, retrieve from self-hosted RAGFlow (brand-prefix retry). Empty or error responses fall back to the local file.
-- Otherwise inject [docs/sample_kb_professional_services.md](docs/sample_kb_professional_services.md) in full — enough for a small firm FAQ (under ~20 pages).
+- Otherwise inject [docs/Summit_Advisory_Group.md](docs/Summit_Advisory_Group.md) in full — enough for a small firm FAQ (under ~20 pages).
 
 Set `KB_PROVIDER=local` to skip RAGFlow, or `KB_PROVIDER=ragflow` to require it. Override the file with `KB_LOCAL_PATH`.
 
@@ -152,19 +194,20 @@ Chat body: `{ "message": "...", "thread_id": "optional-uuid" }`. Site JWT authen
 ## Tools (LangGraph)
 
 - `ragflow_retrieve` (local Markdown or RAGFlow), `get_services`, `list_availability`
-- `book_appointment` → confirmation email (cancel code + Zoom + Google Calendar)
-- `cancel_appointment(email, cancel_code)` → server-side verification
-- `create_ticket` → requires email, phone, call window, question; returns `ticket_id` + `respond_by_display`
+- `book_appointment` → `booked` + confirmation email, or `pending_payment` + placeholder `checkout_url`
+- `simulate_payment` → demo-only; turns a hold into `booked` and sends the cancel code (not Stripe)
+- `cancel_appointment(email, cancel_code)` → only for `booked` appointments
+- `create_ticket` → requires name, email, phone, call window, question; returns `ticket_id` + `respond_by_display`
 
 ## Environment
 
-See [env_copy](env_copy). Important keys: `OPENAI_API_KEY`, `JWT_SECRET`, `DATABASE_URL`, `KB_PROVIDER`, RAGFlow vars, `EMAIL_PROVIDER`, `EMAIL_FROM`, `FIRM_NAME`, `FIRM_TIMEZONE`, `FIRM_WEBSITE`, `MEETING_LINK`.
+See [env_copy](env_copy). Important keys: `OPENAI_API_KEY`, `JWT_SECRET`, `DATABASE_URL`, `KB_PROVIDER`, RAGFlow vars, `EMAIL_PROVIDER`, `EMAIL_FROM`, `FIRM_NAME`, `FIRM_TIMEZONE`, `FIRM_WEBSITE`, `MEETING_LINK`, `FIRM_LOCATION`, `PUBLIC_BASE_URL`, `PAYMENT_HOLD_MINUTES`.
 
 Do not commit `.env` (it is gitignored).
 
 ## Phase 2 (not in this release)
 
-Multi-tenant white-label, Calendly/Google Calendar API sync, reschedule, inbound email, magic-link cancel page, Chatwoot.
+Stripe Checkout / Connect, capacity and multi-location resources, multi-tenant white-label (ServiceEmma), Calendly/Google Calendar API sync, reschedule, inbound email, magic-link cancel page, Chatwoot.
 
 ## License
 

@@ -17,4 +17,45 @@ export const TOKEN_URL = `${API_BASE}/auth/token`;
 export const TOKEN_KEY = "pst_chat_jwt";
 export const THREAD_KEY = "pst_chat_thread";
 export const MAX_WORDS = 150;
-export const FIRM_NAME = "Summit Advisory Group";
+
+/**
+ * Widget chrome for this tenant. Swap firmName, title, subtitle, greeting,
+ * and quickActions for another appointment business; keep the same agent.
+ */
+export const BRAND = {
+  firmName: "Summit Advisory Group",
+  widgetTitle: "Client Services Agent",
+  widgetSubtitle: "Appointments • booking & tickets",
+  version: "V 0.50",
+  avatarSrc: "/assets/avatar.png",
+  avatarAlt: "Advisor",
+  greeting: (name) =>
+    `Hi! I'm the client services assistant for ${name}. I can help with our services, booking or cancelling appointments, and creating a support ticket when needed.`,
+  quickActions: [
+    {
+      label: "Services Introduction",
+      text: (name) => `What services does ${name} offer?`,
+    },
+    {
+      label: "Book appointment",
+      text: () =>
+        "I'd like to book an appointment. Please list the bookable services and let me choose one.",
+    },
+    {
+      label: "Cancel appointment",
+      text: () => "I need to cancel my appointment.",
+    },
+    {
+      label: "Support Ticket",
+      text: () =>
+        "Please create a support ticket. I will provide my name, question or request, email, phone number, and a convenient time to call.",
+    },
+  ],
+};
+
+export const FIRM_NAME = BRAND.firmName;
+
+export function brandActionText(action) {
+  const { text } = action;
+  return typeof text === "function" ? text(BRAND.firmName) : String(text || "");
+}

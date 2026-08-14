@@ -42,6 +42,9 @@ def create_support_ticket(
     email_n = normalize_email(email)
     if not email_n or "@" not in email_n:
         return "[error] A valid email is required to create a ticket."
+    name_n = (name or "").strip()
+    if len(name_n) < 2:
+        return "[error] A name is required (at least 2 characters)."
     phone_n = _normalize_phone(phone)
     if not phone_n:
         return "[error] A phone number (at least 10 digits) is required so we can call if needed."
@@ -85,6 +88,7 @@ def create_support_ticket(
                 f"respond_by={t.respond_by.isoformat()} "
                 f"respond_by_display={format_respond_by(t.respond_by)} "
                 f"contact_email={t.email} "
+                f"name={getattr(t, 'name', '') or name_n} "
                 f"phone={getattr(t, 'phone', '') or phone_n} "
                 f"preferred_call_window={getattr(t, 'preferred_call_window', '') or window} "
                 "(Existing open ticket reused — do not invent a new SLA.)"
@@ -95,7 +99,7 @@ def create_support_ticket(
     ticket = Ticket(
         ticket_id=ticket_id,
         email=email_n,
-        name=(name or "").strip(),
+        name=name_n,
         phone=phone_n,
         preferred_call_window=window,
         summary=summary_t,
@@ -115,6 +119,7 @@ def create_support_ticket(
         {
             "ticket_id": ticket_id,
             "summary": summary_t,
+            "name": name_n,
             "email": email_n,
             "phone": phone_n,
             "preferred_call_window": window,
@@ -126,7 +131,7 @@ def create_support_ticket(
         f"ticket_id={ticket_id} status=open priority={priority} reason={reason_n} "
         f"respond_by={respond_by.isoformat()} "
         f"respond_by_display={display} "
-        f"contact_email={email_n} phone={phone_n} "
+        f"name={name_n} contact_email={email_n} phone={phone_n} "
         f"preferred_call_window={window} "
         "(Use respond_by_display exactly in your reply to the user. Do not invent another time.)"
     )

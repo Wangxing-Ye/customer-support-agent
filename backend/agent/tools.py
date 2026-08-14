@@ -8,6 +8,7 @@ from backend.services.scheduling import (
     cancel_appointment as _cancel,
     list_availability as _list_availability,
     list_services as _list_services,
+    simulate_payment as _simulate_payment,
 )
 from backend.services.tickets import create_support_ticket as _create_ticket
 
@@ -18,7 +19,7 @@ def ragflow_retrieve(query: str) -> str:
 
 
 def get_services() -> str:
-    """Return the current professional service catalog (names, duration, bookable flag)."""
+    """Return the catalog: names, duration, bookable, price, pay_when, fulfillment, location."""
     with session_scope() as session:
         return _list_services(session)
 
@@ -41,11 +42,15 @@ def list_availability(
 def book_appointment(
     service_slug: str,
     start_iso: str,
+    customer_name: str,
     customer_email: str,
-    customer_name: str = "",
     notes: str = "",
 ) -> str:
-    """Book an open slot. Sends confirmation email with cancellation code and Zoom meeting link. Requires customer_email."""
+    """Book an open slot. Requires customer_name and customer_email.
+
+    For pay_when=none or pay_on_arrival, confirms immediately and emails a cancellation code.
+    For checkout_to_hold, holds the slot (pending_payment) and returns checkout_url; not confirmed yet.
+    """
     with session_scope() as session:
         return _book(
             session,
@@ -72,19 +77,29 @@ def cancel_appointment(
         )
 
 
+def simulate_payment(appointment_id: str, customer_email: str) -> str:
+    """Demo-only: confirm a pending_payment hold after the user says they paid. Not real Stripe."""
+    with session_scope() as session:
+        return _simulate_payment(
+            session,
+            appointment_id=appointment_id,
+            customer_email=customer_email,
+        )
+
+
 def create_ticket(
+    name: str,
     email: str,
     phone: str,
     preferred_call_window: str,
     question: str,
     reason: str,
-    name: str = "",
     appointment_id: str = "",
     priority_hint: str = "normal",
 ) -> str:
     """Create a support ticket when the user asks for a human or the issue cannot be resolved.
 
-    Requires email, phone, preferred_call_window, and question (the user's request in their own words).
+    Requires name, email, phone, preferred_call_window, and question (the user's request in their own words).
     reason must be 'user_requested' or 'unresolved'.
     Returns ticket_id and respond_by_display — use that display time exactly in your reply.
     """
@@ -107,6 +122,7 @@ TOOLS = [
     get_services,
     list_availability,
     book_appointment,
+    simulate_payment,
     cancel_appointment,
     create_ticket,
 ]
