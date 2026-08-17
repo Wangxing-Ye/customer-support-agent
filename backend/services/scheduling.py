@@ -24,6 +24,12 @@ from backend.config import (
 )
 from backend.models import Appointment, AvailabilityRule, Service
 from backend.services.email import send_template_email
+from backend.services.stripe_checkout import (
+    create_checkout_session,
+    product_id_for_slug,
+    session_is_paid,
+    stripe_enabled,
+)
 
 # Ambiguous-free alphabet for cancel codes
 _CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
@@ -79,6 +85,31 @@ def google_calendar_template_url(
 
 # On-the-hour starts; skip noon. 5:00 PM is offered even if a 60-min session ends at 6:00 PM.
 SLOT_START_HOURS = (9, 10, 11, 13, 14, 15, 16, 17)
+LUNCH_START = time(12, 0)
+LUNCH_END = time(13, 0)
+
+
+def add_working_minutes(start: datetime, minutes: int, tz: ZoneInfo) -> datetime:
+    """Advance start by working minutes, skipping lunch 12:00–1:00 local."""
+    t = start.astimezone(tz)
+    left = timedelta(minutes=max(0, int(minutes)))
+    safety = 0
+    while left > timedelta(0) and safety < 8:
+        safety += 1
+        day = t.date()
+        lunch_s = datetime.combine(day, LUNCH_START, tzinfo=tz)
+        lunch_e = datetime.combine(day, LUNCH_END, tzinfo=tz)
+        if lunch_s <= t < lunch_e:
+            t = lunch_e
+            continue
+        if t < lunch_s:
+            chunk = min(left, lunch_s - t)
+            t = t + chunk
+            left -= chunk
+            continue
+        t = t + left
+        left = timedelta(0)
+    return t
 
 
 def format_slot_clock(dt: datetime) -> str:
@@ -105,14 +136,14 @@ SERVICE_CATALOG = {
         "currency": "USD",
         "pay_when": "none",
         "fulfillment": "online",
-        "location_text": "",
+        "location_text": MEETING_LINK,
     },
     "strategy-session": {
         "name": "Strategy Session",
         "description": (
             "One-hour working session with a senior advisor. "
             "Priced at USD 500 per hour; each Strategy Session is one hour. "
-            "The slot is held for 15 minutes until payment (demo checkout)."
+            "The slot is held until Stripe Checkout is completed."
         ),
         "duration_minutes": 60,
         "bookable": True,
@@ -121,29 +152,35 @@ SERVICE_CATALOG = {
         "currency": "USD",
         "pay_when": "checkout_to_hold",
         "fulfillment": "online",
-        "location_text": "",
+        "location_text": MEETING_LINK,
     },
     "document-review": {
         "name": "Document Review",
         "description": (
-            "Document review with detailed email feedback at USD 250 per hour. "
-            "Not bookable online — request via a support ticket."
+            "On-site guidance to organize, collect, interpret, and discuss documents "
+            "across functions such as management, product, marketing, sales, finance, "
+            "and HR. Bookable online. Minimum booking is 4 working hours "
+            "(lunch 12:00–1:00 PM is not counted). "
+            "Billed at USD 250 per hour for actual time (4-hour working minimum); "
+            "payment is due within 3 business days after the visit."
         ),
-        "duration_minutes": 60,
-        "bookable": False,
-        "price": "USD 250 per hour, detailed email feedback (request via ticket)",
+        "duration_minutes": 240,
+        "bookable": True,
+        "price": "USD 250 per hour, 4 working hours minimum (lunch 12–1 excluded); due within 3 business days after the visit",
         "price_cents": 25000,
         "currency": "USD",
-        "pay_when": "none",
-        "fulfillment": "online",
-        "location_text": "",
+        "pay_when": "pay_after",
+        "fulfillment": "in_person",
+        "location_text": (
+            "On-site at your office (management, product, marketing, sales, finance, HR as needed)"
+        ),
     },
 }
 
 
 def service_pay_when(service: Service) -> str:
     raw = (getattr(service, "pay_when", None) or "none").strip().lower()
-    if raw in ("none", "checkout_to_hold", "pay_on_arrival"):
+    if raw in ("none", "checkout_to_hold", "pay_on_arrival", "pay_after"):
         return raw
     return "none"
 
@@ -154,21 +191,24 @@ def service_fulfillment(service: Service) -> str:
 
 
 def delivery_location(service: Service) -> str:
+    stored = (getattr(service, "location_text", None) or "").strip()
     if service_fulfillment(service) == "in_person":
-        return (getattr(service, "location_text", None) or "").strip() or FIRM_LOCATION
-    return MEETING_LINK
+        return stored or FIRM_LOCATION
+    return stored or MEETING_LINK
 
 
 def checkout_url_for(appointment_id: str) -> str:
     return f"{PUBLIC_BASE_URL}/pay/simulate/{appointment_id}"
 
 
-def expire_stale_holds(session: Session) -> None:
+def expire_stale_holds(session: Session, skip_appointment_id: str | None = None) -> None:
     now = datetime.now(timezone.utc)
     rows = session.scalars(
         select(Appointment).where(Appointment.status == "pending_payment")
     ).all()
     for appt in rows:
+        if skip_appointment_id and appt.appointment_id == skip_appointment_id:
+            continue
         due = appt.payment_due_at
         if due is None:
             appt.status = "expired"
@@ -224,13 +264,24 @@ def _iter_day_slots(
     duration: timedelta,  # kept for call-site compatibility; slots are on the hour
     tz: ZoneInfo,
 ) -> list[datetime]:
-    """Return on-the-hour slot starts for one local day (no noon)."""
+    """Return on-the-hour slot starts for one local day (no noon).
+
+    Services longer than 60 minutes must finish by the rule end time (5:00 PM),
+    counting working time only (lunch 12:00–1:00 PM is skipped).
+    30- and 60-minute sessions may still start at 5:00 PM.
+    """
     local_day = day.astimezone(tz).date()
     slots: list[datetime] = []
+    rule_end = datetime.combine(local_day, rule.end_time, tzinfo=tz)
+    work_min = int(duration.total_seconds() // 60)
     for hour in SLOT_START_HOURS:
         slot = datetime.combine(local_day, time(hour, 0), tzinfo=tz)
         if slot.time() < rule.start_time:
             continue
+        if duration > timedelta(minutes=60):
+            slot_end = add_working_minutes(slot, work_min, tz)
+            if slot_end > rule_end:
+                continue
         slots.append(slot)
     return slots
 
@@ -258,7 +309,6 @@ def _open_slot_datetimes(
             Appointment.ends_at > start,
         )
     ).all()
-    booked_starts = {a.starts_at.astimezone(tz).replace(second=0, microsecond=0) for a in occupying}
 
     open_slots: list[datetime] = []
     day = start.astimezone(tz).replace(hour=0, minute=0, second=0, microsecond=0)
@@ -273,8 +323,19 @@ def _open_slot_datetimes(
                     continue
                 if slot < start or slot >= end:
                     continue
-                key = slot.replace(second=0, microsecond=0)
-                if key in booked_starts:
+                slot_end = add_working_minutes(slot, service.duration_minutes, tz)
+                overlaps = False
+                for other in occupying:
+                    other_start = other.starts_at
+                    other_end = other.ends_at
+                    if other_start.tzinfo is None:
+                        other_start = other_start.replace(tzinfo=tz)
+                    if other_end.tzinfo is None:
+                        other_end = other_end.replace(tzinfo=tz)
+                    if other_start < slot_end and other_end > slot:
+                        overlaps = True
+                        break
+                if overlaps:
                     continue
                 open_slots.append(slot)
         day += timedelta(days=1)
@@ -329,10 +390,21 @@ def list_availability(
         if dkey != last_date:
             lines.append(f"{local.strftime('%a, %b %d, %Y')}:")
             last_date = dkey
-        lines.append(f"  - {format_slot_clock(s)}  ({s.isoformat()})")
+        if service.duration_minutes > 60:
+            slot_end = add_working_minutes(s, service.duration_minutes, ZoneInfo(FIRM_TIMEZONE))
+            work_hours = service.duration_minutes // 60
+            lines.append(
+                f"  - {format_slot_clock(s)}–{format_slot_clock(slot_end)} "
+                f"({work_hours} working hours; lunch 12:00–1:00 PM skipped)  ({s.isoformat()})"
+            )
+        else:
+            lines.append(f"  - {format_slot_clock(s)}  ({s.isoformat()})")
+    lunch_note = ""
+    if service.duration_minutes > 60:
+        lunch_note = "; lunch 12:00–1:00 PM is excluded from working time"
     text = (
         f"Open on-the-hour slots for {service.name} ({service.duration_minutes} min) "
-        f"in {FIRM_TIMEZONE} (no noon). Offer these clock times to the user:\n"
+        f"in {FIRM_TIMEZONE} (no noon{lunch_note}). Offer these clock times to the user:\n"
         + "\n".join(lines)
     )
     if extra > 0:
@@ -369,7 +441,7 @@ def book_appointment(
     if starts.tzinfo is None:
         starts = starts.replace(tzinfo=tz)
     starts = starts.astimezone(tz).replace(second=0, microsecond=0)
-    ends = starts + timedelta(minutes=service.duration_minutes)
+    ends = add_working_minutes(starts, service.duration_minutes, tz)
 
     window_start = starts - timedelta(minutes=1)
     window_end = starts + timedelta(minutes=1)
@@ -397,7 +469,8 @@ def book_appointment(
     appt_id = generate_appointment_id(starts)
 
     if pay_when == "checkout_to_hold":
-        due = datetime.now(timezone.utc) + timedelta(minutes=PAYMENT_HOLD_MINUTES)
+        hold_minutes = PAYMENT_HOLD_MINUTES
+        due = datetime.now(timezone.utc) + timedelta(minutes=hold_minutes)
         appt = Appointment(
             appointment_id=appt_id,
             service_id=service.id,
@@ -413,20 +486,58 @@ def book_appointment(
         )
         session.add(appt)
         session.flush()
-        when_display = format_when(starts)
+
         url = checkout_url_for(appt_id)
+        used_stripe = False
+        if stripe_enabled() and product_id_for_slug(service.slug):
+            try:
+                url, session_id, expires_at = create_checkout_session(
+                    appointment_id=appt_id,
+                    service_slug=service.slug,
+                    customer_email=email,
+                    customer_name=name,
+                )
+                appt.stripe_checkout_session_id = session_id
+                appt.payment_due_at = expires_at
+                due = expires_at
+                hold_minutes = max(1, int((expires_at - datetime.now(timezone.utc)).total_seconds() / 60))
+                used_stripe = True
+                session.flush()
+            except Exception as exc:  # noqa: BLE001
+                appt.status = "expired"
+                session.flush()
+                return (
+                    f"[error] Could not start Stripe Checkout ({exc}). "
+                    "The slot was released. Call list_availability and book again."
+                )
+
+        when_display = format_when(starts)
         amount = getattr(service, "price_cents", 0) or 0
         currency = (getattr(service, "currency", None) or "USD").upper()
         dollars = amount / 100
+        if used_stripe:
+            extra = (
+                f"(Slot is HELD until {due.isoformat()}, not confirmed. "
+                f"Copy this exact markdown into your reply, using the real https URL, "
+                f"not the words checkout_url or undefined: "
+                f"[Pay with Stripe]({url}) "
+                f"Stripe confirms payment via webhook and emails the cancellation code. "
+                f"If they say they already paid but have no email, call simulate_payment. "
+                f"No cancellation code was sent yet.)"
+            )
+        else:
+            extra = (
+                f"(Slot is HELD for {hold_minutes} minutes, not confirmed. "
+                f"Do not say the appointment is confirmed. Give the user this checkout_url. "
+                f"When they say they have paid, call simulate_payment with this appointment_id "
+                f"and email. No cancellation code was sent yet.)"
+            )
         return (
             f"status=pending_payment appointment_id={appt_id} service={service.name} "
             f"when={when_display} name={name} email={email} "
             f"amount={currency} {dollars:.2f} "
             f"payment_due_at={due.isoformat()} checkout_url={url} "
-            f"(Slot is HELD for {PAYMENT_HOLD_MINUTES} minutes, not confirmed. "
-            f"Do not say the appointment is confirmed. Give the user this checkout_url. "
-            f"When they say they have paid, call simulate_payment with this appointment_id and email. "
-            f"No cancellation code was sent yet.)"
+            f"{extra}"
         )
 
     cancel_code = generate_cancel_code()
@@ -448,6 +559,17 @@ def book_appointment(
     return _send_confirmation_and_result(appt, service, cancel_code, pay_when)
 
 
+def _pay_copy_line(pay_when: str) -> str:
+    if pay_when == "pay_on_arrival":
+        return "Pay at your visit.\n"
+    if pay_when == "pay_after":
+        return (
+            "Payment is due within 3 business days after the visit "
+            "(billed for actual time).\n"
+        )
+    return ""
+
+
 def _send_confirmation_and_result(
     appt: Appointment,
     service: Service,
@@ -466,7 +588,7 @@ def _send_confirmation_and_result(
     else:
         place_line = f"Meeting link: {loc}\n"
         cal_location = loc
-    pay_line = "Pay at your visit.\n" if pay_when == "pay_on_arrival" else ""
+    pay_line = _pay_copy_line(pay_when)
     cal_details = (
         f"Appointment ID: {appt.appointment_id}\n"
         f"Service: {service.name}\n"
@@ -491,7 +613,9 @@ def _send_confirmation_and_result(
         fulfillment_block = f"Meeting link (Zoom):\n{loc}\n\n"
         agent_place = f"meeting_link={loc}"
         email_hint = "the Zoom meeting link"
-    pay_note = "Pay at your visit.\n\n" if pay_when == "pay_on_arrival" else ""
+    pay_note = _pay_copy_line(pay_when)
+    if pay_note and not pay_note.endswith("\n\n"):
+        pay_note = pay_note.rstrip("\n") + "\n\n"
     send_template_email(
         "appointment_confirmation",
         email,
@@ -508,11 +632,17 @@ def _send_confirmation_and_result(
             "meeting_link": loc,
         },
     )
-    arrival = (
-        " Tell the user to pay at the visit."
-        if pay_when == "pay_on_arrival"
-        else f" Tell the user the confirmation email includes the cancellation code and {email_hint}: {loc}"
-    )
+    if pay_when == "pay_on_arrival":
+        arrival = " Tell the user to pay at the visit."
+    elif pay_when == "pay_after":
+        arrival = (
+            " Tell the user payment is due within 3 business days after the visit, "
+            f"billed for actual time, and that the confirmation email includes the cancellation code and {email_hint}: {loc}"
+        )
+    else:
+        arrival = (
+            f" Tell the user the confirmation email includes the cancellation code and {email_hint}: {loc}"
+        )
     return (
         f"status=booked appointment_id={appt.appointment_id} service={service.name} "
         f"when={when_display} name={name} email={email} "
@@ -532,7 +662,7 @@ def simulate_payment(
     if not aid or not email or "@" not in email:
         return "[error] appointment_id and a valid customer_email are required."
 
-    expire_stale_holds(session)
+    expire_stale_holds(session, skip_appointment_id=aid)
     appt = session.scalar(select(Appointment).where(Appointment.appointment_id == aid))
     if not appt or appt.customer_email != email:
         return "[error] No matching appointment for that id and email."
@@ -543,13 +673,59 @@ def simulate_payment(
             "(Already confirmed. Do not invent a new cancellation code.)"
         )
     if appt.status == "expired":
+        sid = (getattr(appt, "stripe_checkout_session_id", None) or "").strip()
+        if not (sid and session_is_paid(sid)):
+            return (
+                "[error] The payment hold expired and the slot was released. "
+                "Call list_availability and book again."
+            )
+    elif appt.status != "pending_payment":
+        return f"[error] Appointment is {appt.status}, not awaiting payment."
+    else:
+        sid = (getattr(appt, "stripe_checkout_session_id", None) or "").strip()
+        if sid:
+            if not session_is_paid(sid):
+                return (
+                    "[error] Stripe has not marked this checkout as paid yet. "
+                    "Ask the user to finish the checkout_url. "
+                    "If they already paid, wait a moment and retry simulate_payment."
+                )
+        elif stripe_enabled() and product_id_for_slug(
+            appt.service.slug if appt.service else ""
+        ):
+            return (
+                "[error] This hold expects Stripe Checkout. "
+                "Do not mark it paid without a Stripe session."
+            )
+
+    return finalize_paid_hold(session, appt)
+
+
+def finalize_paid_hold(session: Session, appt: Appointment) -> str:
+    """Move pending_payment → booked and send the confirmation email."""
+    if appt.status == "booked":
         return (
-            "[error] The payment hold expired and the slot was released. "
-            "Call list_availability and book again."
+            f"status=booked appointment_id={appt.appointment_id} "
+            "(Already confirmed. Do not invent a new cancellation code.)"
         )
+    expire_stale_holds(session, skip_appointment_id=appt.appointment_id)
+    if appt.status == "expired":
+        conflict = session.scalar(
+            select(Appointment).where(
+                Appointment.id != appt.id,
+                Appointment.status.in_(("booked", "pending_payment")),
+                Appointment.starts_at < appt.ends_at,
+                Appointment.ends_at > appt.starts_at,
+            )
+        )
+        if conflict:
+            return (
+                "[error] Payment arrived after the hold expired and the slot was taken. "
+                "Create a support ticket."
+            )
+        appt.status = "pending_payment"
     if appt.status != "pending_payment":
         return f"[error] Appointment is {appt.status}, not awaiting payment."
-
     service = appt.service
     if service is None:
         return "[error] Appointment has no service catalog row."
@@ -665,7 +841,12 @@ def seed_defaults(session: Session) -> None:
                     currency=spec.get("currency", "USD"),
                     pay_when=spec.get("pay_when", "none"),
                     fulfillment=spec.get("fulfillment", "online"),
-                    location_text=spec.get("location_text", ""),
+                    location_text=spec.get("location_text")
+                    or (
+                        MEETING_LINK
+                        if spec.get("fulfillment", "online") == "online"
+                        else ""
+                    ),
                 )
             )
         else:
@@ -679,8 +860,9 @@ def seed_defaults(session: Session) -> None:
             row.currency = spec.get("currency", "USD")
             row.pay_when = spec.get("pay_when", "none")
             row.fulfillment = spec.get("fulfillment", "online")
-            if spec.get("location_text") is not None:
-                row.location_text = spec.get("location_text", "")
+            row.location_text = spec.get("location_text") or (
+                MEETING_LINK if spec.get("fulfillment", "online") == "online" else ""
+            )
 
     existing_rules = session.scalar(select(AvailabilityRule).limit(1))
     if not existing_rules:

@@ -15,6 +15,7 @@ JWT_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "1440"))
 
 _default_origins = (
     "http://127.0.0.1:3000,http://localhost:3000,"
+    "http://127.0.0.1:3003,http://localhost:3003,"
     "http://127.0.0.1:4173,http://localhost:4173,"
     "http://127.0.0.1:5500,http://localhost:5500,"
     "http://127.0.0.1:8080,http://localhost:8080,"
@@ -63,8 +64,8 @@ CANCEL_CODE_PEPPER = os.getenv("CANCEL_CODE_PEPPER", JWT_SECRET or "dev-pepper-c
 _raw_kb_provider = os.getenv("KB_PROVIDER", "auto").strip().lower()
 KB_PROVIDER = _raw_kb_provider if _raw_kb_provider in ("auto", "local", "ragflow") else "auto"
 KB_LOCAL_PATH = os.getenv(
-    "KB_LOCAL_PATH", "docs/Summit_Advisory_Group.md"
-).strip() or "docs/Summit_Advisory_Group.md"
+    "KB_LOCAL_PATH", "docs/kb/summit-advisory-group.md"
+).strip() or "docs/kb/summit-advisory-group.md"
 
 RAGFLOW_URL = os.getenv("RAGFLOW_URL", "http://127.0.0.1:9222").rstrip("/")
 RAGFLOW_API_KEY = os.getenv("RAGFLOW_API_KEY")
@@ -101,5 +102,9 @@ MEETING_LINK = os.getenv(
     "MEETING_LINK",
     "https://us04web.zoom.us/j/7154373528?pwd=c1NLYW1kRXQxa1RPZGlWbVJDOEZzUT09",
 ).strip()
+
+STRIPE_SECRET_KEY = (os.getenv("STRIPE_SECRET_KEY") or "").strip()
+STRIPE_WEBHOOK_SECRET = (os.getenv("STRIPE_WEBHOOK_SECRET") or "").strip()
+STRIPE_PRODUCT_STRATEGY_SESSION = (os.getenv("STRIPE_PRODUCT_STRATEGY_SESSION") or "").strip()
 
 TICKET_DEDUP_HOURS = int(os.getenv("TICKET_DEDUP_HOURS", "24"))

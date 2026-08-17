@@ -12,3 +12,4 @@ pydantic>=2
 openai>=1.0.0
 sqlalchemy>=2
 psycopg[binary,pool]>=3.1
+stripe>=10

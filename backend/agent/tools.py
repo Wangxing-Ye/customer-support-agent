@@ -48,8 +48,8 @@ def book_appointment(
 ) -> str:
     """Book an open slot. Requires customer_name and customer_email.
 
-    For pay_when=none or pay_on_arrival, confirms immediately and emails a cancellation code.
-    For checkout_to_hold, holds the slot (pending_payment) and returns checkout_url; not confirmed yet.
+    For pay_when=none, pay_on_arrival, or pay_after, confirms immediately and emails a cancellation code.
+    For checkout_to_hold, holds the slot (pending_payment) and returns a Stripe checkout_url; not confirmed until paid.
     """
     with session_scope() as session:
         return _book(
@@ -78,7 +78,7 @@ def cancel_appointment(
 
 
 def simulate_payment(appointment_id: str, customer_email: str) -> str:
-    """Demo-only: confirm a pending_payment hold after the user says they paid. Not real Stripe."""
+    """After Stripe Checkout (or a local hold), confirm a pending_payment appointment if payment succeeded."""
     with session_scope() as session:
         return _simulate_payment(
             session,

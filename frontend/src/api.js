@@ -1,4 +1,4 @@
-import { CHAT_URL, CHAT_STREAM_URL, TRANSCRIBE_URL, TTS_URL, THREAD_KEY } from "./config.js";
+import { CHAT_URL, CHAT_STREAM_URL, TRANSCRIBE_URL, TTS_URL, THREAD_KEY, PAY_STATUS_URL } from "./config.js";
 import { ensureToken, clearToken } from "./auth.js";
 
 export function getThreadId() {
@@ -115,6 +115,16 @@ export async function streamChat(message, { onToken, onStatus, onDone, onError }
   if (buffer.trim()) handleBlock(buffer);
   onDone?.(assembled);
   return assembled;
+}
+
+export async function fetchPayStatus(appointmentId) {
+  const raw = String(appointmentId || "").trim();
+  if (!raw) return null;
+  const res = await fetch(
+    `${PAY_STATUS_URL}?appointment_id=${encodeURIComponent(raw)}`,
+  );
+  if (!res.ok) return null;
+  return res.json();
 }
 
 export async function fetchTts(message, retryOn401 = true) {

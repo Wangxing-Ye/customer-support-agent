@@ -13,6 +13,7 @@ export const CHAT_STREAM_URL = `${API_BASE}/chat/stream`;
 export const TRANSCRIBE_URL = `${API_BASE}/transcribe`;
 export const TTS_URL = `${API_BASE}/tts`;
 export const TOKEN_URL = `${API_BASE}/auth/token`;
+export const PAY_STATUS_URL = `${API_BASE}/pay/status`;
 
 export const TOKEN_KEY = "pst_chat_jwt";
 export const THREAD_KEY = "pst_chat_thread";

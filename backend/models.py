@@ -68,6 +68,7 @@ class Appointment(Base):
     )
     cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     payment_due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    stripe_checkout_session_id: Mapped[str] = mapped_column(String(128), default="")
 
     service: Mapped[Service] = relationship("Service")
 

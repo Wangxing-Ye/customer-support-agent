@@ -1,7 +1,19 @@
 import { marked } from "marked";
 import DOMPurify from "dompurify";
 
-marked.use({ gfm: true, breaks: true });
+marked.use({
+  gfm: true,
+  breaks: true,
+  renderer: {
+    link(token, title, text) {
+      const href = typeof token === "string" ? token : token?.href || "";
+      const linkTitle = typeof token === "string" ? title : token?.title;
+      const label = typeof token === "string" ? text : token?.text;
+      const t = linkTitle ? ` title="${String(linkTitle).replace(/"/g, "&quot;")}"` : "";
+      return `<a href="${href}"${t} target="_blank" rel="noopener noreferrer">${label}</a>`;
+    },
+  },
+});
 
 /** slug/name → public asset (Vite serves frontend/public at /) */
 export const SERVICE_IMAGES = [

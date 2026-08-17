@@ -1,18 +1,21 @@
 """FastAPI entrypoint: auth, chat (sync + SSE), voice, TTS."""
 from __future__ import annotations
 
+import html
 import json
 import logging
 import os
 import uuid
 from io import BytesIO
 
-from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage
 from openai import OpenAI
 from pydantic import BaseModel, field_validator
+
+from sqlalchemy import select
 
 from backend.auth import create_access_token, verify_jwt
 from backend.config import (
@@ -25,7 +28,8 @@ from backend.config import (
 )
 from backend.db import Base, engine, ensure_schema, session_scope
 from backend.models import Appointment, AvailabilityRule, EmailLog, Service, Ticket  # noqa: F401
-from backend.services.scheduling import seed_defaults
+from backend.services.scheduling import finalize_paid_hold, seed_defaults
+from backend.services.stripe_checkout import live_checkout_url, parse_webhook_event
 
 logger = logging.getLogger(__name__)
 
@@ -113,6 +117,133 @@ class TtsRequest(BaseModel):
 async def issue_token():
     """Issue a short-lived JWT for the chat UI (protect JWT_SECRET in production)."""
     return {"access_token": create_access_token(), "token_type": "bearer"}
+
+
+def _pay_html(title: str, body: str, extra_script: str = "") -> str:
+    return (
+        "<!doctype html><html><head><meta charset='utf-8'>"
+        f"<title>{title}</title></head><body>"
+        f"<h1>{title}</h1><p>{body}</p>"
+        f"{extra_script}"
+        "</body></html>"
+    )
+
+
+@app.get("/pay/success")
+async def pay_success(appointment_id: str = ""):
+    extra = (
+        f" Appointment ID: {html.escape(appointment_id)}." if appointment_id else ""
+    )
+    aid_js = json.dumps(appointment_id or "")
+    script = (
+        "<script>(function(){"
+        f"var id={aid_js};"
+        "try{if(window.opener&&!window.opener.closed){"
+        "window.opener.postMessage({type:'pst-stripe-paid',appointment_id:id},'*');"
+        "}}catch(e){}"
+        "})();</script>"
+    )
+    return HTMLResponse(
+        _pay_html(
+            "Payment received",
+            "Payment is confirmed. You can close this tab and return to chat. "
+            "A confirmation email with the cancellation code has been sent."
+            + extra,
+            extra_script=script,
+        )
+    )
+
+
+@app.get("/pay/cancel")
+async def pay_cancel(appointment_id: str = ""):
+    extra = (
+        f" Appointment ID: {html.escape(appointment_id)}." if appointment_id else ""
+    )
+    return HTMLResponse(
+        _pay_html(
+            "Checkout cancelled",
+            "The slot is held only until the payment deadline. Close this tab and return to chat to pay or pick another time."
+            + extra,
+        )
+    )
+
+
+@app.get("/pay/status")
+async def pay_status(appointment_id: str = ""):
+    """Public hold status for the chat widget (no cancel code)."""
+    aid = (appointment_id or "").strip()
+    if not aid:
+        raise HTTPException(status_code=400, detail="appointment_id is required")
+    with session_scope() as session:
+        appt = session.scalar(
+            select(Appointment).where(Appointment.appointment_id == aid)
+        )
+        if not appt:
+            raise HTTPException(status_code=404, detail="Appointment not found")
+        checkout_url = ""
+        sid = (getattr(appt, "stripe_checkout_session_id", None) or "").strip()
+        if appt.status == "pending_payment" and sid:
+            try:
+                checkout_url = live_checkout_url(sid)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Could not load Stripe checkout URL: %s", type(exc).__name__)
+        return {
+            "appointment_id": appt.appointment_id,
+            "status": appt.status,
+            "checkout_url": checkout_url,
+        }
+
+
+@app.post("/webhooks/stripe")
+async def stripe_webhook(request: Request):
+    payload = await request.body()
+    signature = request.headers.get("stripe-signature")
+    try:
+        event = parse_webhook_event(payload, signature)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Stripe webhook rejected: %s", type(exc).__name__)
+        raise HTTPException(status_code=400, detail="Invalid Stripe signature") from exc
+
+    etype = getattr(event, "type", None) or event["type"]
+    raw = event["data"]["object"] if isinstance(event, dict) else event.data.object
+    data = raw.to_dict() if hasattr(raw, "to_dict") else dict(raw)
+
+    appointment_id = (
+        (data.get("metadata") or {}).get("appointment_id")
+        or data.get("client_reference_id")
+        or ""
+    )
+    appointment_id = str(appointment_id).strip()
+
+    if etype in ("checkout.session.completed", "checkout.session.async_payment_succeeded"):
+        if (data.get("payment_status") or "") != "paid":
+            return {"received": True, "ignored": "not_paid"}
+        if not appointment_id:
+            logger.warning("Stripe paid session missing appointment_id")
+            return {"received": True, "ignored": "no_appointment"}
+        with session_scope() as session:
+            appt = session.scalar(
+                select(Appointment).where(Appointment.appointment_id == appointment_id)
+            )
+            if not appt:
+                logger.warning("Stripe webhook: unknown appointment %s", appointment_id)
+                return {"received": True, "ignored": "unknown_appointment"}
+            result = finalize_paid_hold(session, appt)
+            logger.info("Stripe payment finalized: %s", result[:200])
+        return {"received": True}
+
+    if etype in ("checkout.session.expired", "checkout.session.async_payment_failed"):
+        if appointment_id:
+            with session_scope() as session:
+                appt = session.scalar(
+                    select(Appointment).where(Appointment.appointment_id == appointment_id)
+                )
+                if appt and appt.status == "pending_payment":
+                    appt.status = "expired"
+                    session.flush()
+        return {"received": True}
+
+    return {"received": True}
 
 
 @app.post("/transcribe")
