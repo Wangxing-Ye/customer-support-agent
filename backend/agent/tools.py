@@ -8,6 +8,7 @@ from backend.services.scheduling import (
     cancel_appointment as _cancel,
     list_availability as _list_availability,
     list_services as _list_services,
+    lookup_appointments as _lookup_appointments,
     simulate_payment as _simulate_payment,
 )
 from backend.services.tickets import create_support_ticket as _create_ticket
@@ -59,6 +60,26 @@ def book_appointment(
             customer_email=customer_email,
             customer_name=customer_name,
             notes=notes,
+        )
+
+
+def lookup_appointments(
+    email: str,
+    appointment_id: str = "",
+    cancel_code: str = "",
+) -> str:
+    """Look up the customer's appointments by email.
+
+    Without cancel_code: returns summaries only (appointment_id, service, when, status).
+    With email + cancel_code: returns full detail including meeting link or location.
+    For pending_payment holds, email + appointment_id is enough (no cancel code yet).
+    """
+    with session_scope() as session:
+        return _lookup_appointments(
+            session,
+            email=email,
+            appointment_id=appointment_id or None,
+            cancel_code=cancel_code or "",
         )
 
 
@@ -123,6 +144,7 @@ TOOLS = [
     list_availability,
     book_appointment,
     simulate_payment,
+    lookup_appointments,
     cancel_appointment,
     create_ticket,
 ]

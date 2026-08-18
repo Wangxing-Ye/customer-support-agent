@@ -135,6 +135,7 @@ Slots offered: **9, 10, 11 AM and 1–5 PM** PT for 30- and 60-minute services. 
 ## Booking, cancel, tickets
 
 - **Book:** choose a bookable service → pick an open hourly slot → provide name and email. Confirmation email includes appointment ID, cancel code, Zoom or in-person `location_text`, and a Google Calendar template URL. The agent reply also includes that location.
+- **Check:** booking email returns summaries (`appointment_id`, service, time, status). Full detail (Zoom or location) needs that email **and** the cancel code; unpaid holds use email + `appointment_id`.
 - **Cancel:** email used at booking **and** the cancel code. Self-service cancel is blocked within `CANCEL_WINDOW_HOURS` (default 24); the agent then opens a high-priority ticket.
 - **Ticket:** required name, email, phone (≥10 digits), preferred call window, and a question (≥10 characters). SLA is computed server-side (normal: next business-day end; high: 4 business hours, Mon–Fri 9–17 PT). Do not invent reply times — use `respond_by_display` from the tool.
 
@@ -157,7 +158,7 @@ Firm name and site come from `FIRM_NAME` and `FIRM_WEBSITE`.
 
 Open [http://localhost:3003](http://localhost:3003) after starting frontend + backend.
 
-Header title, subtitle, greeting, and quick-action chips come from `BRAND` in [frontend/src/config.js](frontend/src/config.js). Change that object for another appointment business; keep the same agent. Default chips: **Services Introduction**, **Book appointment**, **Cancel appointment**, **Support Ticket**. Text chat uses `POST /chat/stream` (SSE). Voice uses `POST /chat` then TTS. Service images in replies can be clicked to enlarge.
+Header title, subtitle, greeting, and quick-action chips come from `BRAND` in [frontend/src/config.js](frontend/src/config.js). Change that object for another appointment business; keep the same agent. Default chips: **Services Introduction**, **Book appointment**, **Check appointment**, **Cancel appointment**, **Support Ticket**. Text chat uses `POST /chat/stream` (SSE). Voice uses `POST /chat` then TTS. Service images in replies can be clicked to enlarge.
 
 ## Quick start
 
@@ -247,6 +248,7 @@ Chat body: `{ "message": "...", "thread_id": "optional-uuid" }`. Site JWT authen
 
 - `ragflow_retrieve` (local Markdown or RAGFlow), `get_services`, `list_availability`
 - `book_appointment` → `booked` + confirmation email, or `pending_payment` + Stripe `checkout_url`
+- `lookup_appointments(email [, appointment_id] [, cancel_code])` → summaries by email; detail with cancel code (or email + id for `pending_payment`)
 - `simulate_payment` → checks Stripe (or local hold) then confirms and emails the cancel code
 - `cancel_appointment(email, cancel_code)` → only for `booked` appointments
 - `create_ticket` → requires name, email, phone, call window, question; returns `ticket_id` + `respond_by_display`

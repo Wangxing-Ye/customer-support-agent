@@ -14,6 +14,9 @@ Appointments are available Monday–Friday, America/Los_Angeles, on the hour onl
 (no noon and no half-hour starts). Booking requires your name and email.
 Free intro consults are confirmed immediately by email (appointment ID, cancellation code, Zoom link). Strategy Sessions stay held until Stripe Checkout is completed; unpaid holds expire and the slot is released. Do not treat a hold as a confirmed appointment. Document Review is on-site, confirmed immediately, billed after the visit, and reserved as 4 working hours ending by 5:00 PM (lunch 12:00–1:00 PM skipped). Starts: 9:00 AM, 10:00 AM, 11:00 AM, or 1:00 PM.
 
+## Looking up an appointment
+You can check your appointment in chat with the email used at booking. The assistant returns a summary (appointment ID, service, time, status). Full detail (Zoom link or visit location) requires that email plus the cancellation code from the confirmation email. Unpaid Strategy Session holds can be checked with email and appointment ID (no cancellation code yet).
+
 ## Cancellation policy
 You may cancel online by providing the email used at booking and the cancellation code from your confirmation email. Self-service cancellation is not available within 24 hours of the appointment start time; contact us for a human to help.
 

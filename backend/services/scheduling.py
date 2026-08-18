@@ -738,6 +738,165 @@ def finalize_paid_hold(session: Session, appt: Appointment) -> str:
     return _send_confirmation_and_result(appt, service, cancel_code, pay_when)
 
 
+def _appointment_starts_local(appt: Appointment) -> datetime:
+    tz = ZoneInfo(FIRM_TIMEZONE)
+    starts = appt.starts_at
+    if starts.tzinfo is None:
+        starts = starts.replace(tzinfo=tz)
+    return starts.astimezone(tz)
+
+
+def lookup_appointments(
+    session: Session,
+    email: str,
+    appointment_id: str | None = None,
+    cancel_code: str = "",
+) -> str:
+    """List or detail appointments for an email.
+
+    List (email only, or email + appointment_id without cancel_code): summary lines —
+    appointment_id, service, when, status. No meeting link / location.
+
+    Detail (email + cancel_code): includes location/meeting link and self-service
+    cancel eligibility. For pending_payment, email + appointment_id is enough for
+    payment-hold status (no cancel code yet).
+    """
+    email_n = normalize_email(email)
+    if not email_n or "@" not in email_n:
+        return "[error] A valid email is required to look up appointments."
+
+    expire_stale_holds(session)
+    tz = ZoneInfo(FIRM_TIMEZONE)
+    now = datetime.now(tz)
+    # Upcoming and very recent; still include unpaid holds.
+    window_start = now - timedelta(days=1)
+
+    q = select(Appointment).where(
+        Appointment.customer_email == email_n,
+        Appointment.status.in_(("booked", "pending_payment")),
+    )
+    aid = (appointment_id or "").strip()
+    if aid:
+        q = q.where(Appointment.appointment_id == aid)
+    rows = list(session.scalars(q.order_by(Appointment.starts_at.asc())).all())
+    rows = [
+        a
+        for a in rows
+        if a.status == "pending_payment" or _appointment_starts_local(a) >= window_start
+    ]
+
+    if not rows:
+        return "No matching appointments for that email."
+
+    code = (cancel_code or "").strip()
+    want_detail = bool(code) or (
+        bool(aid) and len(rows) == 1 and rows[0].status == "pending_payment"
+    )
+
+    if not want_detail:
+        lines = [f"found={len(rows)}"]
+        for a in rows:
+            svc = a.service.name if a.service else "Appointment"
+            when = format_when(_appointment_starts_local(a))
+            lines.append(
+                f"- appointment_id={a.appointment_id} status={a.status} "
+                f"service={svc} when={when}"
+            )
+        if len(rows) > 1 and not aid:
+            lines.append(
+                "Multiple appointments found. Ask which appointment_id to use "
+                "before cancel or detail lookup."
+            )
+        lines.append(
+            "Summaries only (no meeting link or location). "
+            "For full detail on a booked appointment, call again with email + "
+            "cancel_code (and appointment_id if multiple). "
+            "For a pending_payment hold, call again with email + appointment_id."
+        )
+        return "\n".join(lines)
+
+    appt = rows[0]
+    if len(rows) > 1 and not aid:
+        ids = ", ".join(a.appointment_id for a in rows[:5])
+        return (
+            "Multiple appointments found for this email. "
+            f"Please provide appointment_id (one of: {ids})."
+        )
+
+    if code:
+        if appt.status != "booked":
+            return (
+                f"appointment_id={appt.appointment_id} status={appt.status}. "
+                "Cancellation codes exist only after status=booked. "
+                "For pending_payment, look up with email + appointment_id (no cancel_code)."
+            )
+        if appt.cancel_code_attempts >= CANCEL_CODE_MAX_ATTEMPTS:
+            return (
+                "[escalate] Too many failed cancellation-code attempts. "
+                "Create a high-priority support ticket for this customer."
+            )
+        if hash_cancel_code(code) != (appt.cancel_code_hash or ""):
+            appt.cancel_code_attempts += 1
+            session.flush()
+            remaining = CANCEL_CODE_MAX_ATTEMPTS - appt.cancel_code_attempts
+            if remaining <= 0:
+                return (
+                    "[escalate] Too many failed cancellation-code attempts. "
+                    "Create a high-priority support ticket for this customer."
+                )
+            return "Email or cancellation code is incorrect."
+
+    service = appt.service
+    svc_name = service.name if service else "Appointment"
+    starts = _appointment_starts_local(appt)
+    when = format_when(starts)
+    ends_when = format_when(
+        appt.ends_at.replace(tzinfo=tz)
+        if appt.ends_at.tzinfo is None
+        else appt.ends_at.astimezone(tz)
+    )
+    ful = service_fulfillment(service) if service else "online"
+    pay_when = service_pay_when(service) if service else "none"
+
+    if appt.status == "pending_payment":
+        due = appt.payment_due_at
+        due_s = due.isoformat() if due else ""
+        parts = [
+            f"detail appointment_id={appt.appointment_id} status=pending_payment "
+            f"service={svc_name} when={when} ends={ends_when} "
+            f"email={email_n} fulfillment={ful} pay_when={pay_when}",
+        ]
+        if due_s:
+            parts.append(f"payment_due_at={due_s}")
+        parts.append(
+            "Slot is HELD, not confirmed. No cancellation code yet. "
+            "Tell the user to finish Stripe Checkout if they still have the pay link, "
+            "or call simulate_payment(appointment_id, customer_email) if they say they paid."
+        )
+        return "\n".join(parts)
+
+    loc = delivery_location(service) if service else ""
+    hours_until = (starts - now).total_seconds() / 3600
+    can_self = hours_until >= CANCEL_WINDOW_HOURS
+    place_key = "location" if ful == "in_person" else "meeting_link"
+    return (
+        f"detail appointment_id={appt.appointment_id} status=booked "
+        f"service={svc_name} when={when} ends={ends_when} "
+        f"name={appt.customer_name} email={email_n} "
+        f"{place_key}={loc} fulfillment={ful} pay_when={pay_when} "
+        f"self_service_cancel={'yes' if can_self else 'no'} "
+        f"cancel_window_hours={CANCEL_WINDOW_HOURS}"
+        + (
+            ""
+            if can_self
+            else (
+                " (Within the self-service cancel window — escalate with create_ticket "
+                "if they need to cancel.)"
+            )
+        )
+    )
+
+
 def cancel_appointment(
     session: Session,
     email: str,
