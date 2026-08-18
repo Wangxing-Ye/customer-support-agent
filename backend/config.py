@@ -86,9 +86,31 @@ RAG_BRAND_RETRY_SKIP_SUBSTRINGS = [
 ]
 
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.4-mini")
+ANTHROPIC_API_KEY = (os.getenv("ANTHROPIC_API_KEY") or "").strip()
+ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-5").strip()
+# openai | anthropic | auto (infer: claude-* → anthropic, else openai)
+_raw_llm_provider = os.getenv("LLM_PROVIDER", "auto").strip().lower()
+if _raw_llm_provider in ("openai", "anthropic", "auto"):
+    LLM_PROVIDER = _raw_llm_provider
+else:
+    LLM_PROVIDER = "auto"
 WHISPER_MODEL = os.getenv("WHISPER_MODEL", "whisper-1")
 TTS_MODEL = os.getenv("TTS_MODEL", "tts-1")
 TTS_VOICE = os.getenv("TTS_VOICE", "alloy")
+
+
+def resolve_llm_provider() -> str:
+    """Return 'openai' or 'anthropic' for the chat agent."""
+    if LLM_PROVIDER == "openai":
+        return "openai"
+    if LLM_PROVIDER == "anthropic":
+        return "anthropic"
+    # auto: only treat as Claude if OPENAI_MODEL is a Claude id, or OpenAI key is absent
+    if (OPENAI_MODEL or "").strip().lower().startswith("claude"):
+        return "anthropic"
+    if ANTHROPIC_API_KEY and not (os.getenv("OPENAI_API_KEY") or "").strip():
+        return "anthropic"
+    return "openai"
 
 EMAIL_PROVIDER = os.getenv("EMAIL_PROVIDER", "console").lower()  # console | smtp | resend
 EMAIL_FROM = os.getenv("EMAIL_FROM", f"noreply@{FIRM_NAME.lower().replace(' ', '')}.example")

@@ -4,6 +4,7 @@ python-multipart
 langgraph
 langgraph-checkpoint-postgres
 langchain-openai
+langchain-anthropic
 langchain-core
 requests
 python-dotenv

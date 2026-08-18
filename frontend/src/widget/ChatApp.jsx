@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { MAX_WORDS, BRAND, brandActionText, API_BASE } from "../config.js";
 import { wordCount } from "../utils.js";
-import { streamChat, fetchChat, playAssistantAudio, fetchPayStatus } from "../api.js";
+import { streamChat, fetchChat, playAssistantAudio, stopAssistantAudio, setAssistantSpeakingListener, fetchPayStatus } from "../api.js";
 import { renderBotMarkdown } from "../markdown.js";
 import { ensureToken } from "../auth.js";
 import { toggleVoice } from "../voice.js";
@@ -83,14 +83,22 @@ function isBrokenPayHref(href) {
 const PAID_NOTICE =
   "Payment received. Your appointment is confirmed, and a confirmation email with the cancellation code has been sent.";
 
-function MessageBubble({ role, text, streaming }) {
+function MessageBubble({ role, text, streaming, waiting: waitingProp }) {
   const isBot = role === "bot";
-  const waiting = isBot && streaming && !String(text || "").trim();
+  const waiting =
+    Boolean(waitingProp) ||
+    (isBot && streaming && !String(text || "").trim());
   return (
     <div
       className={`message ${isBot ? "bot" : "user"}${streaming ? " streaming" : ""}${waiting ? " typing-msg" : ""}`}
       role={waiting ? "status" : undefined}
-      aria-label={waiting ? "Assistant is thinking" : undefined}
+      aria-label={
+        waiting
+          ? isBot
+            ? "Assistant is thinking"
+            : "Transcribing your speech"
+          : undefined
+      }
     >
       {waiting ? (
         <span className="typing-dots" aria-hidden="true">
@@ -145,10 +153,19 @@ function ChatApp() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  const [speaking, setSpeaking] = useState(false);
   const [authError, setAuthError] = useState(null);
   const [lightbox, setLightbox] = useState(null);
   const bodyRef = useRef(null);
   const watchRef = useRef({ aid: "", timer: null, announced: new Set() });
+
+  useEffect(() => {
+    setAssistantSpeakingListener(setSpeaking);
+    return () => {
+      setAssistantSpeakingListener(null);
+      stopAssistantAudio();
+    };
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -290,31 +307,69 @@ function ChatApp() {
 
   // Allow voice.js to push messages into React state
   useEffect(() => {
+    const VOICE_PENDING_ID = "voice-stt-pending";
     window.__pstChat = {
       addMessage(text, isBot) {
         setMessages((prev) => [
-          ...prev,
+          ...prev.filter((m) => m.id !== VOICE_PENDING_ID),
           { id: crypto.randomUUID(), role: isBot ? "bot" : "user", text },
         ]);
       },
+      beginVoicePending() {
+        setMessages((prev) => {
+          const without = prev.filter((m) => m.id !== VOICE_PENDING_ID);
+          return [
+            ...without,
+            {
+              id: VOICE_PENDING_ID,
+              role: "user",
+              text: "",
+              waiting: true,
+            },
+          ];
+        });
+      },
+      clearVoicePending() {
+        setMessages((prev) => prev.filter((m) => m.id !== VOICE_PENDING_ID));
+      },
       setBusy,
       async sendVoiceTranscript(transcript) {
-        setMessages((prev) => [
-          ...prev,
-          { id: crypto.randomUUID(), role: "user", text: transcript },
-        ]);
+        setMessages((prev) => {
+          const without = prev.filter((m) => m.id !== VOICE_PENDING_ID);
+          return [
+            ...without,
+            { id: crypto.randomUUID(), role: "user", text: transcript },
+          ];
+        });
         setBusy(true);
         try {
           // Voice path uses non-streaming chat then TTS (per product rules)
           const res = await fetchChat(transcript);
           if (!res.ok) throw new Error("bad");
           const data = await res.json();
-          const reply = data.response != null ? String(data.response) : "";
-          const finalReply = reply || "(No response)";
+          const replyRaw = data.response;
+          const reply =
+            typeof replyRaw === "string"
+              ? replyRaw
+              : Array.isArray(replyRaw)
+                ? replyRaw
+                    .map((p) =>
+                      typeof p === "string"
+                        ? p
+                        : p && typeof p === "object"
+                          ? String(p.text || "")
+                          : "",
+                    )
+                    .join("")
+                : replyRaw != null
+                  ? String(replyRaw)
+                  : "";
+          const finalReply = reply.trim() || "(No response)";
           setMessages((prev) => [
             ...prev,
             { id: crypto.randomUUID(), role: "bot", text: finalReply },
           ]);
+          setBusy(false);
           await playAssistantAudio(finalReply);
         } catch {
           setMessages((prev) => [
@@ -479,6 +534,7 @@ function ChatApp() {
             role={m.role}
             text={m.text}
             streaming={m.streaming}
+            waiting={m.waiting}
           />
         ))}
         {busy && messages[messages.length - 1]?.streaming === false ? (
@@ -522,14 +578,22 @@ function ChatApp() {
         <button
           type="button"
           id="voice-btn"
-          className="voice-btn icon-btn"
-          aria-label="Voice input"
-          aria-pressed="false"
-          disabled={busy}
-          onClick={() => toggleVoice()}
+          className={`voice-btn icon-btn${speaking ? " speaking" : ""}`}
+          aria-label={speaking ? "Stop speaking" : "Voice input"}
+          aria-pressed={speaking ? "true" : "false"}
+          disabled={busy && !speaking}
+          onClick={() => {
+            if (speaking) {
+              stopAssistantAudio();
+              return;
+            }
+            toggleVoice();
+          }}
         >
           <img className="icon-default" src="/assets/icon_microphone.png" alt="" width="22" height="22" />
           <img className="icon-focus" src="/assets/icon_microphone_focus.png" alt="" width="22" height="22" />
+          <img className="icon-recording" src="/assets/icon_microphone_recording.png" alt="" width="22" height="22" />
+          <span className="icon-stop" aria-hidden="true" />
         </button>
         </div>
       </div>

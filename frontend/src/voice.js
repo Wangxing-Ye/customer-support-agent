@@ -101,6 +101,7 @@ export async function toggleVoice() {
     }
     const ext = blobType.indexOf("mp4") !== -1 ? "mp4" : "webm";
     let transcribed = "";
+    ui?.beginVoicePending?.();
     try {
       const res = await fetchTranscribe(blob, `recording.${ext}`);
       if (!res.ok) {
@@ -111,16 +112,19 @@ export async function toggleVoice() {
         } catch {
           /* ignore */
         }
+        ui?.clearVoicePending?.();
         ui?.addMessage?.(detail, true);
         return;
       }
       const data = await res.json();
       transcribed = String(data.text || "").trim();
       if (!transcribed) {
+        ui?.clearVoicePending?.();
         ui?.addMessage?.("No speech detected. Please try again.", true);
         return;
       }
       if (wordCount(transcribed) > MAX_WORDS) {
+        ui?.clearVoicePending?.();
         ui?.addMessage?.(
           `Voice input must be at most ${MAX_WORDS} words. Please try a shorter question.`,
           true,
@@ -128,6 +132,7 @@ export async function toggleVoice() {
         return;
       }
     } catch {
+      ui?.clearVoicePending?.();
       ui?.addMessage?.("Sorry, transcription failed. Please try again.", true);
       return;
     }
@@ -135,6 +140,7 @@ export async function toggleVoice() {
     if (ui?.sendVoiceTranscript) {
       await ui.sendVoiceTranscript(transcribed);
     } else {
+      ui?.clearVoicePending?.();
       ui?.addMessage?.(transcribed, false);
     }
   };

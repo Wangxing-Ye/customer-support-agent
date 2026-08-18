@@ -174,7 +174,8 @@ button {
 }
 #send-btn img.icon-focus,
 #voice-btn img.icon-focus,
-.icon-btn img.icon-focus {
+.icon-btn img.icon-focus,
+#voice-btn img.icon-recording {
   display: none;
 }
 #send-btn img.icon-default,
@@ -185,30 +186,63 @@ button {
 #send-btn:hover img.icon-default,
 #send-btn:focus img.icon-default,
 #send-btn:focus-visible img.icon-default,
-#voice-btn:hover img.icon-default,
-#voice-btn:focus img.icon-default,
-#voice-btn:focus-visible img.icon-default,
-#voice-btn.recording img.icon-default,
+#voice-btn:hover:not(.recording):not(.speaking) img.icon-default,
+#voice-btn:focus:not(.recording):not(.speaking) img.icon-default,
+#voice-btn:focus-visible:not(.recording):not(.speaking) img.icon-default,
 .icon-btn:hover img.icon-default,
-.icon-btn:focus img.icon-default,
-.voice-btn.recording img.icon-default {
+.icon-btn:focus img.icon-default {
   display: none;
 }
 #send-btn:hover img.icon-focus,
 #send-btn:focus img.icon-focus,
 #send-btn:focus-visible img.icon-focus,
-#voice-btn:hover img.icon-focus,
-#voice-btn:focus img.icon-focus,
-#voice-btn:focus-visible img.icon-focus,
-#voice-btn.recording img.icon-focus,
+#voice-btn:hover:not(.recording):not(.speaking) img.icon-focus,
+#voice-btn:focus:not(.recording):not(.speaking) img.icon-focus,
+#voice-btn:focus-visible:not(.recording):not(.speaking) img.icon-focus,
 .icon-btn:hover img.icon-focus,
-.icon-btn:focus img.icon-focus,
+.icon-btn:focus img.icon-focus {
+  display: block;
+}
+#voice-btn.recording img.icon-default,
+#voice-btn.recording img.icon-focus,
+.voice-btn.recording img.icon-default,
 .voice-btn.recording img.icon-focus {
+  display: none;
+}
+#voice-btn.recording img.icon-recording,
+.voice-btn.recording img.icon-recording {
+  display: block;
+}
+#voice-btn .icon-stop {
+  display: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  background: #ef4444;
+  flex-shrink: 0;
+}
+#voice-btn.speaking img.icon-default,
+#voice-btn.speaking img.icon-focus,
+#voice-btn.speaking img.icon-recording,
+.voice-btn.speaking img.icon-default,
+.voice-btn.speaking img.icon-focus,
+.voice-btn.speaking img.icon-recording {
+  display: none;
+}
+#voice-btn.speaking .icon-stop,
+.voice-btn.speaking .icon-stop {
+  display: block;
+}
+#voice-btn.speaking:hover .icon-stop,
+#voice-btn.speaking:focus .icon-stop {
   display: block;
 }
 .voice-btn.recording {
   background: transparent;
   animation: voice-pulse 1.2s ease-in-out infinite;
+}
+.voice-btn.speaking {
+  background: transparent;
 }
 @keyframes voice-pulse {
   0%,
@@ -305,6 +339,9 @@ button {
   border-radius: 50%;
   background: #94a3b8;
   animation: typing-dot 1.35s ease-in-out infinite;
+}
+.message.user .typing-dots span {
+  background: rgba(255, 255, 255, 0.9);
 }
 .typing-dots span:nth-child(2) {
   animation-delay: 0.2s;

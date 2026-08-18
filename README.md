@@ -112,6 +112,7 @@ Cancel codes exist only after **booked**. Unpaid `pending_payment` rows expire; 
 
 ```text
 Vite React widget → FastAPI → LangGraph agent
+                       ├─ Chat LLM: OpenAI or Anthropic Claude (`LLM_PROVIDER`)
                        ├─ Knowledge retrieval (local Markdown or RAGFlow)
                        ├─ Postgres (services, availability, appointments, tickets, email_log)
                        ├─ LangGraph PostgresSaver (falls back to MemorySaver / SQLite)
@@ -257,7 +258,7 @@ Chat body: `{ "message": "...", "thread_id": "optional-uuid" }`. Site JWT authen
 
 ## Environment
 
-See [env_copy](env_copy). Important keys: `OPENAI_API_KEY`, `JWT_SECRET`, `DATABASE_URL`, `KB_PROVIDER`, RAGFlow vars, `EMAIL_PROVIDER`, `EMAIL_FROM`, `FIRM_NAME`, `FIRM_TIMEZONE`, `FIRM_WEBSITE`, `MEETING_LINK`, `FIRM_LOCATION`, `PUBLIC_BASE_URL`, `PAYMENT_HOLD_MINUTES`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRODUCT_STRATEGY_SESSION`.
+See [env_copy](env_copy). Important keys: `OPENAI_API_KEY`, `OPENAI_MODEL`, `LLM_PROVIDER` (`openai` \| `anthropic` \| `auto`), `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `JWT_SECRET`, `DATABASE_URL`, `KB_PROVIDER`, RAGFlow vars, `EMAIL_PROVIDER`, `EMAIL_FROM`, `FIRM_NAME`, `FIRM_TIMEZONE`, `FIRM_WEBSITE`, `MEETING_LINK`, `FIRM_LOCATION`, `PUBLIC_BASE_URL`, `PAYMENT_HOLD_MINUTES`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRODUCT_STRATEGY_SESSION`. Whisper/TTS still use OpenAI even when chat uses Claude.
 
 Local Stripe webhook forwarding:
 

@@ -6,13 +6,17 @@ import operator
 from typing import Annotated, List, TypedDict
 
 from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_openai import ChatOpenAI
 from langgraph.graph import END, StateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
 
 from backend.agent.prompts import build_system_prompt
 from backend.agent.tools import TOOLS
-from backend.config import CHECKPOINT_DATABASE_URL, OPENAI_MODEL
+from backend.config import (
+    ANTHROPIC_MODEL,
+    CHECKPOINT_DATABASE_URL,
+    OPENAI_MODEL,
+    resolve_llm_provider,
+)
 from backend.services.ragflow import retrieve
 
 logger = logging.getLogger(__name__)
@@ -24,7 +28,22 @@ class AgentState(TypedDict):
     messages: Annotated[List, operator.add]
 
 
-llm = ChatOpenAI(model=OPENAI_MODEL, temperature=0, reasoning_effort="none")
+def build_chat_llm():
+    """Chat LLM for the agent. Voice (Whisper/TTS) stays on OpenAI in app.py."""
+    provider = resolve_llm_provider()
+    if provider == "anthropic":
+        from langchain_anthropic import ChatAnthropic
+
+        logger.info("Chat LLM: Anthropic model=%s", ANTHROPIC_MODEL)
+        # Newer Claude models reject temperature (deprecated); omit it.
+        return ChatAnthropic(model=ANTHROPIC_MODEL)
+    from langchain_openai import ChatOpenAI
+
+    logger.info("Chat LLM: OpenAI model=%s", OPENAI_MODEL)
+    return ChatOpenAI(model=OPENAI_MODEL, temperature=0, reasoning_effort="none")
+
+
+llm = build_chat_llm()
 llm_with_tools = llm.bind_tools(TOOLS)
 
 

@@ -160,11 +160,51 @@ export async function fetchTranscribe(blob, filename, retryOn401 = true) {
   return res;
 }
 
+let currentAudio = null;
+let currentAudioUrl = null;
+let speakingListener = null;
+let playToken = 0;
+
+export function setAssistantSpeakingListener(fn) {
+  speakingListener = typeof fn === "function" ? fn : null;
+}
+
+function notifySpeaking(speaking) {
+  try {
+    speakingListener?.(Boolean(speaking));
+  } catch {
+    /* ignore */
+  }
+}
+
+export function stopAssistantAudio() {
+  playToken += 1;
+  if (currentAudio) {
+    try {
+      currentAudio.pause();
+      currentAudio.removeAttribute("src");
+      currentAudio.load();
+    } catch {
+      /* ignore */
+    }
+    currentAudio = null;
+  }
+  if (currentAudioUrl) {
+    URL.revokeObjectURL(currentAudioUrl);
+    currentAudioUrl = null;
+  }
+  notifySpeaking(false);
+}
+
 export async function playAssistantAudio(text) {
   const clean = String(text || "").trim();
   if (!clean) return;
+  stopAssistantAudio();
+  const token = playToken;
+  notifySpeaking(true);
   try {
     const res = await fetchTts(clean);
+    if (token !== playToken) return;
     if (!res.ok) {
       try {
         const errBody = await res.json();
@@ -172,16 +212,39 @@ export async function playAssistantAudio(text) {
       } catch {
         console.warn("TTS failed with status", res.status);
       }
+      if (token === playToken) notifySpeaking(false);
       return;
     }
     const buf = await res.arrayBuffer();
+    if (token !== playToken) return;
     const blob = new Blob([buf], { type: "audio/mpeg" });
     const url = URL.createObjectURL(blob);
     const audio = new Audio(url);
-    audio.onended = () => URL.revokeObjectURL(url);
-    audio.onerror = () => URL.revokeObjectURL(url);
-    audio.play().catch(() => URL.revokeObjectURL(url));
+    currentAudio = audio;
+    currentAudioUrl = url;
+
+    await new Promise((resolve) => {
+      const finish = () => {
+        if (currentAudio === audio) {
+          currentAudio = null;
+        }
+        if (currentAudioUrl === url) {
+          URL.revokeObjectURL(url);
+          currentAudioUrl = null;
+        }
+        if (token === playToken) notifySpeaking(false);
+        resolve();
+      };
+      if (token !== playToken) {
+        finish();
+        return;
+      }
+      audio.onended = finish;
+      audio.onerror = finish;
+      audio.play().catch(finish);
+    });
   } catch {
+    if (token === playToken) stopAssistantAudio();
     /* text bubble already shown */
   }
 }

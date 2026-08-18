@@ -55,10 +55,38 @@ def _thread_config(thread_id: str | None) -> dict:
     return {"configurable": {"thread_id": tid}}, tid
 
 
+def _content_to_text(content) -> str:
+    """Normalize LLM message content (str or Claude/OpenAI content blocks) to plain text."""
+    if content is None:
+        return ""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: list[str] = []
+        for block in content:
+            if isinstance(block, str):
+                parts.append(block)
+                continue
+            if isinstance(block, dict):
+                btype = (block.get("type") or "").strip().lower()
+                if btype in ("text", "") or "text" in block:
+                    parts.append(str(block.get("text") or ""))
+                continue
+            text = getattr(block, "text", None)
+            if text is not None:
+                parts.append(str(text))
+                continue
+            btype = str(getattr(block, "type", "") or "").lower()
+            if btype == "text":
+                parts.append(str(getattr(block, "text", "") or ""))
+        return "".join(parts)
+    return str(content)
+
+
 def _final_text(result: dict) -> str:
     last = result["messages"][-1]
-    text = getattr(last, "content", None) or ""
-    return text if str(text).strip() else "I couldn’t generate a reply. Please try again."
+    text = _content_to_text(getattr(last, "content", None)).strip()
+    return text if text else "I couldn’t generate a reply. Please try again."
 
 
 @app.on_event("startup")
@@ -328,16 +356,8 @@ async def chat_stream(req: ChatRequest, _: None = Depends(verify_jwt)):
                 node = meta.get("langgraph_node") or meta.get("checkpoint_ns") or ""
                 if isinstance(message, (AIMessageChunk, AIMessage)):
                     # Skip pure tool-call chunks without text
-                    content = message.content
-                    if isinstance(content, list):
-                        parts = []
-                        for p in content:
-                            if isinstance(p, dict) and p.get("type") == "text":
-                                parts.append(p.get("text") or "")
-                            elif isinstance(p, str):
-                                parts.append(p)
-                        content = "".join(parts)
-                    text = content if isinstance(content, str) else ""
+                    content = _content_to_text(message.content)
+                    text = content if content else ""
                     if text:
                         assembled += text
                         yield f"event: token\ndata: {json.dumps({'text': text})}\n\n"
@@ -349,7 +369,7 @@ async def chat_stream(req: ChatRequest, _: None = Depends(verify_jwt)):
                 values = snap.values if snap else {}
                 msgs = values.get("messages") or []
                 if msgs:
-                    assembled = str(getattr(msgs[-1], "content", "") or "")
+                    assembled = _content_to_text(getattr(msgs[-1], "content", None))
                 if assembled.strip():
                     yield f"event: token\ndata: {json.dumps({'text': assembled})}\n\n"
                 else:
