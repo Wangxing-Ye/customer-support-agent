@@ -1,14 +1,14 @@
 # Client Services Agent (Professional Services)
 
-AI client-services assistant for **booking / appointment businesses**. The runnable demo is **Summit Advisory Group**. Users chat by text or microphone. Answers are grounded in a firm knowledge base (local Markdown, or optional self-hosted **RAGFlow**), orchestrated by **LangGraph**, and backed by **PostgreSQL** for appointments, tickets, and email logs.
+AI client-services assistant for **booking / appointment businesses**. The runnable demo is **Summit Advisory Group**. Users chat by text or microphone. Answers are grounded in a firm knowledge base (local Markdown, or optional self-hosted **RAGFlow**), orchestrated by **LangGraph**, and backed by **PostgreSQL** for inquiries, appointments, payment status, tickets, and outbound email.
 
-This is a **single-tenant** demo. It does **not** place product orders.
+This is a **single-tenant** demo.
 
-![Client services chat widget](docs/screenshot-chat.png)
+Client services chat widget
 
 ## Background
 
-**ServiceEmma** (*Your AI front desk for client services*) is the product name for this client-services agent. This project concentrates on **booking / appointment businesses**: a catalog of services, a reservation, a pay-when rule, and a ticket when chat cannot resolve the question. It is not a retail storefront and it does **not** place product orders.
+**ServiceEmma** (*Your AI front desk for client services*) is the product name for this client-services agent. This project concentrates on **booking / appointment businesses**: a catalog of services, a reservation, a pay-when rule, and a ticket when chat cannot resolve the question. 
 
 The shipped example is **single-tenant Summit Advisory Group** (consulting: intro call, strategy session, on-site document review). Swap firm env, `BRAND`, service catalog, and the local knowledge-base Markdown for another shop. The same agent also fits:
 
@@ -16,6 +16,19 @@ The shipped example is **single-tenant Summit Advisory Group** (consulting: intr
 - Spa / beauty — [Geranium Spa](https://geraniumspa.com/)
 - Sports venue — [Synergy Badminton](https://www.synergybadminton.com/)
 - Education / classes — [Green Forest Art Studio](https://greenforestartstudio.com/)
+
+Major U.S. industries that need online appointment / booking services, with estimated small and midsize business counts (nonemployer firms plus employers with fewer than 500 employees):
+
+| Industry | Estimated SMEs |
+|----------|----------------|
+| Professional services (law, accounting, consulting, design, etc.) | 4.88 million |
+| Education and training | 0.96 million |
+| Beauty and wellness (hair, nails, spa, massage, etc.) | 1.3–1.5 million |
+| Fitness / sports venues (gyms, studios, personal training, etc.) | 0.4–0.5 million |
+| Traditional Chinese medicine / tuina / acupuncture | 30,000–40,000 |
+| Veterinary clinics | 30,000–35,000 |
+| Motels / vacation rentals / RV parks | 40,000–50,000 |
+| **Total** | **~7.7–8.3 million** |
 
 Multi-staff capacity, Stripe Connect, and a live second tenant are not included.
 
@@ -41,43 +54,55 @@ Phase 1 is **single-tenant**: one firm, Postgres, outbound email, embeddable cha
 - Outbound email (`console` / `smtp` / `resend`) with a shared plaintext footer
 - Streaming chat widget (SSE): quick actions, markdown + service images + lightbox, typing dots, multiline input, Whisper / TTS voice path
 
+
+
 ## Design: catalog, booking, pay-when
 
 Appointment businesses share three layers. This demo keeps **one** `Service` / `Appointment` shape. Summit intro consults confirm immediately on Zoom; Strategy Sessions use Stripe Checkout to hold the slot. Capacity and extra verticals are still **not covered**.
 
 ### Catalog
 
-| | Phase 1 |
-|---|---|
-| Service name, duration, bookable vs ticket-only, photo | **Covered** (`services` + seed catalog) |
-| Price as display copy (e.g. USD 500 / hour) | **Covered** (catalog text plus `price_cents` / currency) |
-| `price_cents` + currency for checkout | **Covered** (catalog amount; Strategy Session charges the Stripe product default price) |
-| `pay_when`: `none` \| `checkout_to_hold` \| `pay_on_arrival` \| `pay_after` | **Covered** (seed: intro=`none`, strategy=`checkout_to_hold`, document-review=`pay_after`) |
-| `fulfillment`: `online` \| `in_person` (address vs meeting link) | **Covered** (per-service `location_text`; empty online falls back to `MEETING_LINK`, in-person to `FIRM_LOCATION`) |
-| Capacity &gt; 1 (court party, class seats) | **Not covered** (implicit capacity = 1) |
-| Location / staff / court as a bookable resource | **Not covered** |
+
+|                                                                          | Phase 1                                                                                                            |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| Service name, duration, bookable vs ticket-only, photo                   | **Covered** (`services` + seed catalog)                                                                            |
+| Price as display copy (e.g. USD 500 / hour)                              | **Covered** (catalog text plus `price_cents` / currency)                                                           |
+| `price_cents` + currency for checkout                                    | **Covered** (catalog amount; Strategy Session charges the Stripe product default price)                            |
+| `pay_when`: `none` | `checkout_to_hold` | `pay_on_arrival` | `pay_after` | **Covered** (seed: intro=`none`, strategy=`checkout_to_hold`, document-review=`pay_after`)                         |
+| `fulfillment`: `online` | `in_person` (address vs meeting link)          | **Covered** (per-service `location_text`; empty online falls back to `MEETING_LINK`, in-person to `FIRM_LOCATION`) |
+| Capacity > 1 (court party, class seats)                                  | **Not covered** (implicit capacity = 1)                                                                            |
+| Location / staff / court as a bookable resource                          | **Not covered**                                                                                                    |
+
+
+
 
 ### Booking
 
-| | Phase 1 |
-|---|---|
-| Name + email, hourly open slots, confirm email, cancel code | **Covered** |
-| Status `booked` immediately when `pay_when` is `none`, `pay_on_arrival`, or `pay_after` | **Covered** |
-| Online meeting link + Google Calendar URL | **Covered** |
-| In-person location on the confirmation | **Covered** (when `fulfillment=in_person`) |
-| `pending_payment` / expire unpaid holds | **Covered** (15-minute hold; overdue → `expired`, slot free) |
-| Configurable hours (evenings, 90-minute services) | **Not covered** (fixed 9–11 AM and 1–5 PM PT) |
-| `party_size` | **Not covered** |
+
+|                                                                                         | Phase 1                                                      |
+| --------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| Name + email, hourly open slots, confirm email, cancel code                             | **Covered**                                                  |
+| Status `booked` immediately when `pay_when` is `none`, `pay_on_arrival`, or `pay_after` | **Covered**                                                  |
+| Online meeting link + Google Calendar URL                                               | **Covered**                                                  |
+| In-person location on the confirmation                                                  | **Covered** (when `fulfillment=in_person`)                   |
+| `pending_payment` / expire unpaid holds                                                 | **Covered** (15-minute hold; overdue → `expired`, slot free) |
+| Configurable hours (evenings, 90-minute services)                                       | **Not covered** (fixed 9–11 AM and 1–5 PM PT)                |
+| `party_size`                                                                            | **Not covered**                                              |
+
+
+
 
 ### Pay-when
 
-| | Phase 1 |
-|---|---|
-| Free intro (skip payment) | **Covered** (complimentary consult; no per-email cap) |
-| Pay on arrival (book now, pay at the shop) | **Covered** (`pay_when=pay_on_arrival`; not used on Summit seed) |
-| Pay after the visit (invoice) | **Covered** (`pay_when=pay_after`; Document Review, due in 3 business days) |
-| Checkout to hold the slot (then `booked`) | **Covered** — Stripe Checkout for Strategy Session (`STRIPE_PRODUCT_STRATEGY_SESSION`); webhook `POST /webhooks/stripe` |
-| Agent must not say “confirmed” until `status=booked` | **Covered** (prompt + tool `status=pending_payment` vs `booked`) |
+
+|                                                      | Phase 1                                                                                                                 |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Free intro (skip payment)                            | **Covered** (complimentary consult; no per-email cap)                                                                   |
+| Pay on arrival (book now, pay at the shop)           | **Covered** (`pay_when=pay_on_arrival`; not used on Summit seed)                                                        |
+| Pay after the visit (invoice)                        | **Covered** (`pay_when=pay_after`; Document Review, due in 3 business days)                                             |
+| Checkout to hold the slot (then `booked`)            | **Covered** — Stripe Checkout for Strategy Session (`STRIPE_PRODUCT_STRATEGY_SESSION`); webhook `POST /webhooks/stripe` |
+| Agent must not say “confirmed” until `status=booked` | **Covered** (prompt + tool `status=pending_payment` vs `booked`)                                                        |
+
 
 Cancel codes exist only after **booked**. Unpaid `pending_payment` rows expire; they cannot be cancelled with a code.
 
@@ -93,13 +118,17 @@ Vite React widget → FastAPI → LangGraph agent
                        └─ Email provider (console | smtp | resend) + Stripe Checkout (Strategy Session)
 ```
 
+
+
 ## Demo services
 
-| Service | Slug | Price | Booking |
-|---------|------|-------|---------|
-| Introductory Consultation | `intro-consult` | Free, 30 min | Online, confirm immediately (`pay_when=none`) |
-| Strategy Session | `strategy-session` | USD 500 / hour (1 hour) | Online, hold until Stripe Checkout (`checkout_to_hold`) |
-| Document Review | `document-review` | USD 250 / hour, **4 working hours minimum** | On-site; lunch 12:00–1:00 PM excluded; finishes by 5 PM; pay within 3 business days (`pay_after`) |
+
+| Service                   | Slug               | Price                                       | Booking                                                                                           |
+| ------------------------- | ------------------ | ------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Introductory Consultation | `intro-consult`    | Free, 30 min                                | Online, confirm immediately (`pay_when=none`)                                                     |
+| Strategy Session          | `strategy-session` | USD 500 / hour (1 hour)                     | Online, hold until Stripe Checkout (`checkout_to_hold`)                                           |
+| Document Review           | `document-review`  | USD 250 / hour, **4 working hours minimum** | On-site; lunch 12:00–1:00 PM excluded; finishes by 5 PM; pay within 3 business days (`pay_after`) |
+
 
 Slots offered: **9, 10, 11 AM and 1–5 PM** PT for 30- and 60-minute services. Document Review is **4 working hours** (lunch 12:00–1:00 PM not counted) and must finish by 5:00 PM, so starts are **9 AM (ends 2 PM), 10 AM (ends 3 PM), 11 AM (ends 4 PM), and 1:00 PM (ends 5 PM)**. Photos live under `frontend/public/assets/` (`intro-consult.jpg`, `strategy-session.jpg`, `document-review.jpg`).
 
@@ -108,6 +137,8 @@ Slots offered: **9, 10, 11 AM and 1–5 PM** PT for 30- and 60-minute services. 
 - **Book:** choose a bookable service → pick an open hourly slot → provide name and email. Confirmation email includes appointment ID, cancel code, Zoom or in-person `location_text`, and a Google Calendar template URL. The agent reply also includes that location.
 - **Cancel:** email used at booking **and** the cancel code. Self-service cancel is blocked within `CANCEL_WINDOW_HOURS` (default 24); the agent then opens a high-priority ticket.
 - **Ticket:** required name, email, phone (≥10 digits), preferred call window, and a question (≥10 characters). SLA is computed server-side (normal: next business-day end; high: 4 business hours, Mon–Fri 9–17 PT). Do not invent reply times — use `respond_by_display` from the tool.
+
+
 
 ## Outbound email
 
@@ -124,11 +155,13 @@ Firm name and site come from `FIRM_NAME` and `FIRM_WEBSITE`.
 
 ## Chat widget
 
-Open http://localhost:3003 after starting frontend + backend.
+Open [http://localhost:3003](http://localhost:3003) after starting frontend + backend.
 
 Header title, subtitle, greeting, and quick-action chips come from `BRAND` in [frontend/src/config.js](frontend/src/config.js). Change that object for another appointment business; keep the same agent. Default chips: **Services Introduction**, **Book appointment**, **Cancel appointment**, **Support Ticket**. Text chat uses `POST /chat/stream` (SSE). Voice uses `POST /chat` then TTS. Service images in replies can be clicked to enlarge.
 
 ## Quick start
+
+
 
 ### 1. Postgres
 
@@ -164,11 +197,15 @@ pip install -r requirements.txt
 cp env_copy .env   # then edit secrets
 ```
 
+
+
 ### 3. Backend
 
 ```bash
 uvicorn backend.app:app --reload --host 0.0.0.0 --port 8000
 ```
+
+
 
 ### 4. Frontend
 
@@ -176,7 +213,7 @@ uvicorn backend.app:app --reload --host 0.0.0.0 --port 8000
 cd frontend && npm install && npm run dev
 ```
 
-Open http://localhost:3003
+Open [http://localhost:3003](http://localhost:3003)
 
 ### Knowledge base
 
@@ -191,16 +228,18 @@ Optional RAGFlow: upload that sample Markdown (or your own KB), then set `RAGFLO
 
 ## API
 
-| Endpoint | Purpose |
-|----------|---------|
-| `POST /auth/token` | JWT for UI |
-| `POST /chat` | Sync chat (used by voice path) |
-| `POST /chat/stream` | SSE token stream (text UI) |
-| `POST /transcribe` | Whisper |
-| `POST /webhooks/stripe` | Stripe Checkout events (no JWT; verify `STRIPE_WEBHOOK_SECRET`) |
-| `GET /pay/status` | Appointment `status` for the chat widget (no JWT / no cancel code) |
-| `GET /pay/success` | Post-checkout landing page (notifies the chat tab) |
-| `GET /pay/cancel` | Checkout cancelled landing page |
+
+| Endpoint                | Purpose                                                            |
+| ----------------------- | ------------------------------------------------------------------ |
+| `POST /auth/token`      | JWT for UI                                                         |
+| `POST /chat`            | Sync chat (used by voice path)                                     |
+| `POST /chat/stream`     | SSE token stream (text UI)                                         |
+| `POST /transcribe`      | Whisper                                                            |
+| `POST /webhooks/stripe` | Stripe Checkout events (no JWT; verify `STRIPE_WEBHOOK_SECRET`)    |
+| `GET /pay/status`       | Appointment `status` for the chat widget (no JWT / no cancel code) |
+| `GET /pay/success`      | Post-checkout landing page (notifies the chat tab)                 |
+| `GET /pay/cancel`       | Checkout cancelled landing page                                    |
+
 
 Chat body: `{ "message": "...", "thread_id": "optional-uuid" }`. Site JWT authenticates the widget; appointment cancel still requires **email + cancel code**, not the site JWT.
 
@@ -211,6 +250,8 @@ Chat body: `{ "message": "...", "thread_id": "optional-uuid" }`. Site JWT authen
 - `simulate_payment` → checks Stripe (or local hold) then confirms and emails the cancel code
 - `cancel_appointment(email, cancel_code)` → only for `booked` appointments
 - `create_ticket` → requires name, email, phone, call window, question; returns `ticket_id` + `respond_by_display`
+
+
 
 ## Environment
 
