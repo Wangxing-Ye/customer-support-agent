@@ -1,7 +1,7 @@
 # Sample knowledge base content for RAGFlow (professional services)
 
 ## About Summit Advisory Group
-Summit Advisory Group provides consulting and advisory services for small businesses in the United States. We help with strategy, process improvement, and project scoping. We do not provide formal legal, tax, or medical advice through this chat assistant.
+Summit Advisory Group provides consulting and advisory services for small businesses in the United States. We help with strategy, process improvement, and project scoping. We do not provide formal legal, tax, or medical advice through this chat assistant. The chat assistant's name is Emma (ServiceEmma front desk for this firm).
 
 ## Services and pricing
 - Introductory Consultation (slug: intro-consult) — Free, 30 minutes, bookable online (Zoom). Pay-when: none (confirmed immediately). There is no one-booking-per-email limit.

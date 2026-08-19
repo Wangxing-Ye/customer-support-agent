@@ -2,10 +2,6 @@
 
 AI client-services assistant for **booking / appointment businesses**. The runnable demo is **Summit Advisory Group**. Users chat by text or microphone. Answers are grounded in a firm knowledge base (local Markdown, or optional self-hosted **RAGFlow**), orchestrated by **LangGraph**, and backed by **PostgreSQL** for inquiries, appointments, payment status, tickets, and outbound email.
 
-This is a **single-tenant** demo.
-
-Client services chat widget
-
 ## Background
 
 **ServiceEmma** (*Your AI front desk for client services*) is the product name for this client-services agent. This project concentrates on **booking / appointment businesses**: a catalog of services, a reservation, a pay-when rule, and a ticket when chat cannot resolve the question. 
@@ -19,16 +15,18 @@ The shipped example is **single-tenant Summit Advisory Group** (consulting: intr
 
 Major U.S. industries that need online appointment / booking services, with estimated small and midsize business counts (nonemployer firms plus employers with fewer than 500 employees):
 
-| Industry | Estimated SMEs |
-|----------|----------------|
-| Professional services (law, accounting, consulting, design, etc.) | 4.88 million |
-| Education and training | 0.96 million |
-| Beauty and wellness (hair, nails, spa, massage, etc.) | 1.3–1.5 million |
-| Fitness / sports venues (gyms, studios, personal training, etc.) | 0.4–0.5 million |
-| Traditional Chinese medicine / tuina / acupuncture | 30,000–40,000 |
-| Veterinary clinics | 30,000–35,000 |
-| Motels / vacation rentals / RV parks | 40,000–50,000 |
-| **Total** | **~7.7–8.3 million** |
+
+| Industry                                                          | Estimated SMEs       |
+| ----------------------------------------------------------------- | -------------------- |
+| Professional services (law, accounting, consulting, design, etc.) | 4.88 million         |
+| Education and training                                            | 0.96 million         |
+| Beauty and wellness (hair, nails, spa, massage, etc.)             | 1.3–1.5 million      |
+| Fitness / sports venues (gyms, studios, personal training, etc.)  | 0.4–0.5 million      |
+| Traditional Chinese medicine / tuina / acupuncture                | 30,000–40,000        |
+| Veterinary clinics                                                | 30,000–35,000        |
+| Motels / vacation rentals / RV parks                              | 40,000–50,000        |
+| **Total**                                                         | **~7.7–8.3 million** |
+
 
 Multi-staff capacity, Stripe Connect, and a live second tenant are not included.
 
@@ -52,7 +50,7 @@ Phase 1 is **single-tenant**: one firm, Postgres, outbound email, embeddable cha
 - Cancel with **email + cancellation code** (hashed at rest; 24-hour self-service window)
 - Support tickets when the AI cannot resolve or the user wants a human: name, email, phone, preferred call window, question, server-computed **respond_by** SLA
 - Outbound email (`console` / `smtp` / `resend`) with a shared plaintext footer
-- Streaming chat widget (SSE): quick actions, markdown + service images + lightbox, typing dots, multiline input, Whisper / TTS voice path
+- Streaming chat widget (SSE): quick actions, markdown + service images + lightbox, typing dots, multiline input, Whisper STT + TTS (`TTS_PROVIDER`) voice path
 
 
 
@@ -63,15 +61,15 @@ Appointment businesses share three layers. This demo keeps **one** `Service` / `
 ### Catalog
 
 
-|                                                                          | Phase 1                                                                                                            |
-| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
-| Service name, duration, bookable vs ticket-only, photo                   | **Covered** (`services` + seed catalog)                                                                            |
-| Price as display copy (e.g. USD 500 / hour)                              | **Covered** (catalog text plus `price_cents` / currency)                                                           |
-| `price_cents` + currency for checkout                                    | **Covered** (catalog amount; Strategy Session charges the Stripe product default price)                            |
-| `pay_when`: `none` | `checkout_to_hold` | `pay_on_arrival` | `pay_after` | **Covered** (seed: intro=`none`, strategy=`checkout_to_hold`, document-review=`pay_after`)                         |
-| `fulfillment`: `online` | `in_person` (address vs meeting link)          | **Covered** (per-service `location_text`; empty online falls back to `MEETING_LINK`, in-person to `FIRM_LOCATION`) |
-| Capacity > 1 (court party, class seats)                                  | **Not covered** (implicit capacity = 1)                                                                            |
-| Location / staff / court as a bookable resource                          | **Not covered**                                                                                                    |
+|                                                        | Phase 1                                                                                 |
+| ------------------------------------------------------ | --------------------------------------------------------------------------------------- |
+| Service name, duration, bookable vs ticket-only, photo | **Covered** (`services` + seed catalog)                                                 |
+| Price as display copy (e.g. USD 500 / hour)            | **Covered** (catalog text plus `price_cents` / currency)                                |
+| `price_cents` + currency for checkout                  | **Covered** (catalog amount; Strategy Session charges the Stripe product default price) |
+| `pay_when`: `none`                                     | `checkout_to_hold`                                                                      |
+| `fulfillment`: `online`                                | `in_person` (address vs meeting link)                                                   |
+| Capacity > 1 (court party, class seats)                | **Not covered** (implicit capacity = 1)                                                 |
+| Location / staff / court as a bookable resource        | **Not covered**                                                                         |
 
 
 
@@ -113,6 +111,7 @@ Cancel codes exist only after **booked**. Unpaid `pending_payment` rows expire; 
 ```text
 Vite React widget → FastAPI → LangGraph agent
                        ├─ Chat LLM: OpenAI or Anthropic Claude (`LLM_PROVIDER`)
+                       ├─ Voice: Whisper STT (OpenAI) + TTS (`TTS_PROVIDER`: OpenAI or ElevenLabs)
                        ├─ Knowledge retrieval (local Markdown or RAGFlow)
                        ├─ Postgres (services, availability, appointments, tickets, email_log)
                        ├─ LangGraph PostgresSaver (falls back to MemorySaver / SQLite)
@@ -153,7 +152,7 @@ Our service agent is available 24/7
 https://www.SummitAdvisoryGroup.com
 ```
 
-Firm name and site come from `FIRM_NAME` and `FIRM_WEBSITE`.
+Firm name and site come from `FIRM_NAME` and `FIRM_WEBSITE`. The assistant's display name is `AGENT_NAME` (default Emma).
 
 ## Chat widget
 
@@ -236,7 +235,8 @@ Optional RAGFlow: upload that sample Markdown (or your own KB), then set `RAGFLO
 | `POST /auth/token`      | JWT for UI                                                         |
 | `POST /chat`            | Sync chat (used by voice path)                                     |
 | `POST /chat/stream`     | SSE token stream (text UI)                                         |
-| `POST /transcribe`      | Whisper                                                            |
+| `POST /transcribe`      | Whisper STT (OpenAI)                                               |
+| `POST /tts`             | Speech synthesis (`TTS_PROVIDER`: OpenAI or ElevenLabs)            |
 | `POST /webhooks/stripe` | Stripe Checkout events (no JWT; verify `STRIPE_WEBHOOK_SECRET`)    |
 | `GET /pay/status`       | Appointment `status` for the chat widget (no JWT / no cancel code) |
 | `GET /pay/success`      | Post-checkout landing page (notifies the chat tab)                 |
@@ -258,7 +258,7 @@ Chat body: `{ "message": "...", "thread_id": "optional-uuid" }`. Site JWT authen
 
 ## Environment
 
-See [env_copy](env_copy). Important keys: `OPENAI_API_KEY`, `OPENAI_MODEL`, `LLM_PROVIDER` (`openai` \| `anthropic` \| `auto`), `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `JWT_SECRET`, `DATABASE_URL`, `KB_PROVIDER`, RAGFlow vars, `EMAIL_PROVIDER`, `EMAIL_FROM`, `FIRM_NAME`, `FIRM_TIMEZONE`, `FIRM_WEBSITE`, `MEETING_LINK`, `FIRM_LOCATION`, `PUBLIC_BASE_URL`, `PAYMENT_HOLD_MINUTES`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRODUCT_STRATEGY_SESSION`. Whisper/TTS still use OpenAI even when chat uses Claude.
+See [env_copy](env_copy). Important keys: `OPENAI_API_KEY`, `OPENAI_MODEL`, `LLM_PROVIDER` (`openai` / `anthropic` / `auto`), `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `JWT_SECRET`, `DATABASE_URL`, `KB_PROVIDER`, RAGFlow vars, `EMAIL_PROVIDER`, `EMAIL_FROM`, `FIRM_NAME`, `AGENT_NAME`, `FIRM_TIMEZONE`, `FIRM_WEBSITE`, `MEETING_LINK`, `FIRM_LOCATION`, `PUBLIC_BASE_URL`, `PAYMENT_HOLD_MINUTES`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRODUCT_STRATEGY_SESSION`. Whisper STT stays on OpenAI. TTS uses `TTS_PROVIDER` (`openai` / `elevenlabs`) with `OPENAI_TTS_*` or `ELEVENLABS_*`.
 
 Local Stripe webhook forwarding:
 

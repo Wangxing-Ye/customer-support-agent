@@ -22,14 +22,13 @@ from backend.config import (
     CORS_ORIGINS,
     FIRM_NAME,
     MAX_MESSAGE_WORDS,
-    TTS_MODEL,
-    TTS_VOICE,
     WHISPER_MODEL,
 )
 from backend.db import Base, engine, ensure_schema, session_scope
 from backend.models import Appointment, AvailabilityRule, EmailLog, Service, Ticket  # noqa: F401
 from backend.services.scheduling import finalize_paid_hold, seed_defaults
 from backend.services.stripe_checkout import live_checkout_url, parse_webhook_event
+from backend.services.tts import resolve_tts_provider, synthesize_speech_bytes
 
 logger = logging.getLogger(__name__)
 
@@ -400,27 +399,22 @@ async def chat_stream(req: ChatRequest, _: None = Depends(verify_jwt)):
 
 @app.post("/tts")
 async def synthesize_speech(req: TtsRequest, _: None = Depends(verify_jwt)):
-    """Turn assistant text into speech audio bytes."""
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        raise HTTPException(status_code=500, detail="OPENAI_API_KEY is not set.")
-
+    """Turn assistant text into speech audio bytes (OpenAI or ElevenLabs via TTS_PROVIDER)."""
     text = req.message.strip()
     if not text:
         raise HTTPException(status_code=400, detail="Text cannot be empty.")
 
+    provider = resolve_tts_provider()
     try:
-        client = OpenAI(api_key=api_key)
-        speech = client.audio.speech.create(
-            model=TTS_MODEL,
-            voice=TTS_VOICE,
-            input=text,
-            response_format="mp3",
-        )
+        audio_bytes = synthesize_speech_bytes(text)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"TTS failed: {exc}") from exc
+        raise HTTPException(
+            status_code=502,
+            detail=f"TTS failed ({provider}): {exc}",
+        ) from exc
 
-    audio_bytes = speech.read()
     return StreamingResponse(BytesIO(audio_bytes), media_type="audio/mpeg")
 
 

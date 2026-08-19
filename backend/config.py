@@ -46,6 +46,7 @@ else:
     )
 
 FIRM_NAME = os.getenv("FIRM_NAME", "Summit Advisory Group").strip() or "Summit Advisory Group"
+AGENT_NAME = (os.getenv("AGENT_NAME") or "Emma").strip() or "Emma"
 FIRM_TIMEZONE = os.getenv("FIRM_TIMEZONE", "America/Los_Angeles").strip()
 FIRM_WEBSITE = (
     os.getenv("FIRM_WEBSITE", "https://www.SummitAdvisoryGroup.com").strip()
@@ -95,8 +96,19 @@ if _raw_llm_provider in ("openai", "anthropic", "auto"):
 else:
     LLM_PROVIDER = "auto"
 WHISPER_MODEL = os.getenv("WHISPER_MODEL", "whisper-1")
+# TTS: openai | elevenlabs (STT / Whisper stays on OpenAI)
+_raw_tts_provider = os.getenv("TTS_PROVIDER", "openai").strip().lower()
+TTS_PROVIDER = _raw_tts_provider if _raw_tts_provider in ("openai", "elevenlabs") else "openai"
+# Legacy aliases still accepted; prefer OPENAI_TTS_* / ELEVENLABS_*
 TTS_MODEL = os.getenv("TTS_MODEL", "tts-1")
 TTS_VOICE = os.getenv("TTS_VOICE", "alloy")
+OPENAI_TTS_MODEL = (os.getenv("OPENAI_TTS_MODEL") or TTS_MODEL or "tts-1").strip()
+OPENAI_TTS_VOICE_ID = (os.getenv("OPENAI_TTS_VOICE_ID") or TTS_VOICE or "alloy").strip()
+ELEVENLABS_API_KEY = (os.getenv("ELEVENLABS_API_KEY") or "").strip()
+ELEVENLABS_TTS_VOICE_ID = (os.getenv("ELEVENLABS_TTS_VOICE_ID") or "").strip()
+ELEVENLABS_TTS_MODEL = (
+    os.getenv("ELEVENLABS_TTS_MODEL") or "eleven_multilingual_v2"
+).strip()
 
 
 def resolve_llm_provider() -> str:

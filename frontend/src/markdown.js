@@ -54,15 +54,19 @@ export function ensureServiceImages(text) {
       continue;
     }
     const patterns = [svc.slug, ...svc.names];
-    let inserted = false;
     for (const p of patterns) {
-      const re = new RegExp(`(${p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "i");
-      if (!re.test(out)) continue;
-      out = out.replace(re, `$1\n\n![${svc.alt}](${svc.file})\n`);
-      inserted = true;
+      const re = new RegExp(p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+      const match = re.exec(out);
+      if (!match) continue;
+      // Insert after the full line so we never split markdown like **Name**.
+      const lineEnd = out.indexOf("\n", match.index);
+      const insertAt = lineEnd === -1 ? out.length : lineEnd;
+      out =
+        out.slice(0, insertAt) +
+        `\n\n![${svc.alt}](${svc.file})\n` +
+        out.slice(insertAt);
       break;
     }
-    if (!inserted) continue;
   }
   return out;
 }

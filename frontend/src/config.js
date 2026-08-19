@@ -31,7 +31,7 @@ export const BRAND = {
   avatarSrc: "/assets/avatar.png",
   avatarAlt: "Advisor",
   greeting: (name) =>
-    `Hi! I'm the client services assistant for ${name}. I can help with our services, booking, checking, or cancelling appointments, and creating a support ticket when needed.`,
+    `Hi, I'm Emma with ${name}. How can I help today — booking, a quick question, or something else?`,
   quickActions: [
     {
       label: "Services Introduction",

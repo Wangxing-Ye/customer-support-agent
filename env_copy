@@ -11,6 +11,7 @@ CORS_ORIGINS=http://127.0.0.1:3000,http://localhost:3000,http://127.0.0.1:3003,h
 
 # Firm branding (single-tenant demo)
 FIRM_NAME=Summit Advisory Group
+AGENT_NAME=Emma
 FIRM_TIMEZONE=America/Los_Angeles
 FIRM_WEBSITE=https://www.SummitAdvisoryGroup.com
 FIRM_LOCATION=
@@ -59,9 +60,17 @@ BUSINESS_HOURS_START=9
 BUSINESS_HOURS_END=17
 MAX_MESSAGE_WORDS=150
 
-TTS_MODEL=tts-1
-TTS_VOICE=alloy
 WHISPER_MODEL=whisper-1
+# TTS: openai | elevenlabs (STT stays on OpenAI Whisper)
+TTS_PROVIDER=openai
+OPENAI_TTS_MODEL=gpt-4o-mini-tts
+OPENAI_TTS_VOICE_ID=alloy
+# Legacy aliases (used if OPENAI_TTS_* unset):
+# TTS_MODEL=tts-1
+# TTS_VOICE=alloy
+ELEVENLABS_API_KEY=
+ELEVENLABS_TTS_VOICE_ID=
+ELEVENLABS_TTS_MODEL=eleven_multilingual_v2
 
 # Stripe Checkout (Strategy Session). Webhook: POST {PUBLIC_BASE_URL}/webhooks/stripe
 # Local: stripe listen --forward-to localhost:8000/webhooks/stripe
