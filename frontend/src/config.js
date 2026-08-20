@@ -17,7 +17,21 @@ export const PAY_STATUS_URL = `${API_BASE}/pay/status`;
 
 export const TOKEN_KEY = "pst_chat_jwt";
 export const THREAD_KEY = "pst_chat_thread";
-export const MAX_WORDS = 150;
+export const MAX_WORDS_KEY = "pst_max_words";
+/** Fallback until /auth/token returns max_message_words from the API. */
+export const DEFAULT_MAX_WORDS = 150;
+
+export function getMaxWords() {
+  const raw =
+    typeof sessionStorage !== "undefined"
+      ? sessionStorage.getItem(MAX_WORDS_KEY)
+      : null;
+  const n = parseInt(raw || "", 10);
+  return Number.isFinite(n) && n > 0 ? n : DEFAULT_MAX_WORDS;
+}
+
+/** @deprecated Use getMaxWords() so the limit matches backend MAX_MESSAGE_WORDS. */
+export const MAX_WORDS = DEFAULT_MAX_WORDS;
 
 /**
  * Widget chrome for this tenant. Swap firmName, title, subtitle, greeting,
@@ -25,8 +39,11 @@ export const MAX_WORDS = 150;
  */
 export const BRAND = {
   firmName: "Summit Advisory Group",
-  widgetTitle: "Client Services Agent",
-  widgetSubtitle: "Appointments • booking & tickets",
+  /** Header title; defaults to firmName (FIRM_NAME for this tenant). */
+  get widgetTitle() {
+    return this.firmName;
+  },
+  widgetSubtitle: "Appointments • Booking & Tickets",
   version: "V 0.50",
   avatarSrc: "/assets/avatar.png",
   avatarAlt: "Advisor",
@@ -34,27 +51,26 @@ export const BRAND = {
     `Hi, I'm Emma with ${name}. How can I help today — booking, a quick question, or something else?`,
   quickActions: [
     {
-      label: "Services Introduction",
+      label: "Our Services",
       text: (name) => `What services does ${name} offer?`,
     },
     {
-      label: "Book appointment",
+      label: "Book Appointment",
       text: () =>
         "I'd like to book an appointment. Please list the bookable services and let me choose one.",
     },
     {
-      label: "Check appointment",
-      text: () =>
-        "I'd like to check my appointment. Please look it up after I give the email I used to book.",
+      label: "Check Appointment",
+      text: () => "I'd like to check my appointment.",
     },
     {
-      label: "Cancel appointment",
+      label: "Cancel Appointment",
       text: () => "I need to cancel my appointment.",
     },
     {
       label: "Support Ticket",
       text: () =>
-        "Please create a support ticket. I will provide my name, question or request, email, phone number, and a convenient time to call.",
+        "Please create a support ticket. I have a specific question and would like someone to answer.",
     },
   ],
 };

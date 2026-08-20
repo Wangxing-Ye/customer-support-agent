@@ -1,4 +1,4 @@
-import { MAX_WORDS } from "./config.js";
+import { getMaxWords } from "./config.js";
 import { wordCount } from "./utils.js";
 import { fetchTranscribe } from "./api.js";
 
@@ -123,10 +123,10 @@ export async function toggleVoice() {
         ui?.addMessage?.("No speech detected. Please try again.", true);
         return;
       }
-      if (wordCount(transcribed) > MAX_WORDS) {
+      if (wordCount(transcribed) > getMaxWords()) {
         ui?.clearVoicePending?.();
         ui?.addMessage?.(
-          `Voice input must be at most ${MAX_WORDS} words. Please try a shorter question.`,
+          `Voice input must be at most ${getMaxWords()} words. Please try a shorter question.`,
           true,
         );
         return;

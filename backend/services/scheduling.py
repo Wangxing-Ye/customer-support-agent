@@ -995,6 +995,7 @@ def seed_defaults(session: Session) -> None:
                     description=spec["description"],
                     duration_minutes=spec["duration_minutes"],
                     bookable=spec["bookable"],
+                    active=True,
                     image_url=image,
                     price_cents=spec.get("price_cents", 0),
                     currency=spec.get("currency", "USD"),
@@ -1013,6 +1014,7 @@ def seed_defaults(session: Session) -> None:
             row.description = spec["description"]
             row.duration_minutes = spec["duration_minutes"]
             row.bookable = spec["bookable"]
+            row.active = True
             if not (getattr(row, "image_url", None) or "").strip():
                 row.image_url = image
             row.price_cents = spec.get("price_cents", 0)
@@ -1022,6 +1024,12 @@ def seed_defaults(session: Session) -> None:
             row.location_text = spec.get("location_text") or (
                 MEETING_LINK if spec.get("fulfillment", "online") == "online" else ""
             )
+
+    # Hide legacy/extra rows not in the current catalog (keep rows for appointment history).
+    for slug, row in by_slug.items():
+        if slug not in SERVICE_CATALOG:
+            row.active = False
+            row.bookable = False
 
     existing_rules = session.scalar(select(AvailabilityRule).limit(1))
     if not existing_rules:

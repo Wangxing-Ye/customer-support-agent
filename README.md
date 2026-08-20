@@ -9,6 +9,7 @@ AI client-services assistant for **booking / appointment businesses**. The runna
 The shipped example is **single-tenant Summit Advisory Group** (consulting: intro call, strategy session, on-site document review). Swap firm env, `BRAND`, service catalog, and the local knowledge-base Markdown for another shop. The same agent also fits:
 
 - Dental clinic — [Columbia Dental Care](https://www.columbia-dentalcare.com/)
+- Accounting — [Bay Area Accounting Solutions](https://www.bayareaaccountingsolutions.com/)
 - Spa / beauty — [Geranium Spa](https://geraniumspa.com/)
 - Sports venue — [Synergy Badminton](https://www.synergybadminton.com/)
 - Education / classes — [Green Forest Art Studio](https://greenforestartstudio.com/)
@@ -158,7 +159,7 @@ Firm name and site come from `FIRM_NAME` and `FIRM_WEBSITE`. The assistant's dis
 
 Open [http://localhost:3003](http://localhost:3003) after starting frontend + backend.
 
-Header title, subtitle, greeting, and quick-action chips come from `BRAND` in [frontend/src/config.js](frontend/src/config.js). Change that object for another appointment business; keep the same agent. Default chips: **Services Introduction**, **Book appointment**, **Check appointment**, **Cancel appointment**, **Support Ticket**. Text chat uses `POST /chat/stream` (SSE). Voice uses `POST /chat` then TTS. Service images in replies can be clicked to enlarge.
+Header title, subtitle, greeting, and quick-action chips come from `BRAND` in [frontend/src/config.js](frontend/src/config.js). Change that object for another appointment business; keep the same agent. Default chips: **Our Services**, **Book appointment**, **Check appointment**, **Cancel appointment**, **Support Ticket**. Text chat uses `POST /chat/stream` (SSE). Voice uses `POST /chat` then TTS. Service images in replies can be clicked to enlarge.
 
 ## Quick start
 

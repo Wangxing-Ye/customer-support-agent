@@ -143,7 +143,11 @@ class TtsRequest(BaseModel):
 @app.post("/auth/token")
 async def issue_token():
     """Issue a short-lived JWT for the chat UI (protect JWT_SECRET in production)."""
-    return {"access_token": create_access_token(), "token_type": "bearer"}
+    return {
+        "access_token": create_access_token(),
+        "token_type": "bearer",
+        "max_message_words": MAX_MESSAGE_WORDS,
+    }
 
 
 def _pay_html(title: str, body: str, extra_script: str = "") -> str:

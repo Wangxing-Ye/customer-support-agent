@@ -59,6 +59,7 @@ CANCEL_CODE_MAX_ATTEMPTS=5
 BUSINESS_HOURS_START=9
 BUSINESS_HOURS_END=17
 MAX_MESSAGE_WORDS=150
+# Frontend reads the same limit from POST /auth/token (max_message_words).
 
 WHISPER_MODEL=whisper-1
 # TTS: openai | elevenlabs (STT stays on OpenAI Whisper)
