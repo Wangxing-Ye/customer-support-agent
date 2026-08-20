@@ -13,9 +13,13 @@ export const CHAT_STREAM_URL = `${API_BASE}/chat/stream`;
 export const TRANSCRIBE_URL = `${API_BASE}/transcribe`;
 export const TTS_URL = `${API_BASE}/tts`;
 export const TOKEN_URL = `${API_BASE}/auth/token`;
+export const REFRESH_URL = `${API_BASE}/auth/refresh`;
 export const PAY_STATUS_URL = `${API_BASE}/pay/status`;
 
 export const TOKEN_KEY = "pst_chat_jwt";
+/** Unix seconds when the current JWT expires (from /auth/token or /auth/refresh). */
+export const TOKEN_EXPIRES_AT_KEY = "pst_chat_jwt_exp";
+/** @deprecated Thread is derived server-side from JWT sid; kept only for cleanup. */
 export const THREAD_KEY = "pst_chat_thread";
 export const MAX_WORDS_KEY = "pst_max_words";
 /** Fallback until /auth/token returns max_message_words from the API. */

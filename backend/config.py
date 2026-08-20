@@ -11,8 +11,24 @@ MAX_MESSAGE_WORDS = int(os.getenv("MAX_MESSAGE_WORDS", "150"))
 
 JWT_SECRET = os.getenv("JWT_SECRET")
 JWT_ALGORITHM = "HS256"
-JWT_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "1440"))
+# Anonymous widget session JWT TTL (default 30 minutes). Frontend silently refreshes.
+JWT_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "30"))
+JWT_AUDIENCE = (os.getenv("JWT_AUDIENCE") or "customer-support-widget").strip() or (
+    "customer-support-widget"
+)
+# Refresh when fewer than this many seconds remain on the token (frontend hint).
+JWT_REFRESH_SKEW_SECONDS = int(os.getenv("JWT_REFRESH_SKEW_SECONDS", "300"))
 
+# Phase-1 in-process rate limits for anonymous session minting (per process).
+AUTH_TOKEN_PER_MINUTE = int(os.getenv("AUTH_TOKEN_PER_MINUTE", "10"))
+AUTH_TOKEN_PER_HOUR = int(os.getenv("AUTH_TOKEN_PER_HOUR", "60"))
+AUTH_REFRESH_PER_MINUTE = int(os.getenv("AUTH_REFRESH_PER_MINUTE", "20"))
+# Only trust X-Forwarded-For when the app sits behind a known reverse proxy.
+TRUST_PROXY_HEADERS = os.getenv("TRUST_PROXY_HEADERS", "false").lower() in (
+    "1",
+    "true",
+    "yes",
+)
 _default_origins = (
     "http://127.0.0.1:3000,http://localhost:3000,"
     "http://127.0.0.1:3003,http://localhost:3003,"

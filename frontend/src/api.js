@@ -1,18 +1,5 @@
-import { CHAT_URL, CHAT_STREAM_URL, TRANSCRIBE_URL, TTS_URL, THREAD_KEY, PAY_STATUS_URL } from "./config.js";
+import { CHAT_URL, CHAT_STREAM_URL, TRANSCRIBE_URL, TTS_URL, PAY_STATUS_URL } from "./config.js";
 import { ensureToken, clearToken } from "./auth.js";
-
-export function getThreadId() {
-  let t = sessionStorage.getItem(THREAD_KEY);
-  if (!t) {
-    t = crypto.randomUUID();
-    sessionStorage.setItem(THREAD_KEY, t);
-  }
-  return t;
-}
-
-export function setThreadId(id) {
-  if (id) sessionStorage.setItem(THREAD_KEY, id);
-}
 
 export async function fetchChat(message, retryOn401 = true) {
   const token = await ensureToken();
@@ -22,19 +9,11 @@ export async function fetchChat(message, retryOn401 = true) {
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ message, thread_id: getThreadId() }),
+    body: JSON.stringify({ message }),
   });
   if (res.status === 401 && retryOn401) {
     clearToken();
     return fetchChat(message, false);
-  }
-  if (res.ok) {
-    try {
-      const data = await res.clone().json();
-      if (data.thread_id) setThreadId(data.thread_id);
-    } catch {
-      /* ignore */
-    }
   }
   return res;
 }
@@ -52,7 +31,7 @@ export async function streamChat(message, { onToken, onStatus, onDone, onError }
       Authorization: `Bearer ${token}`,
       Accept: "text/event-stream",
     },
-    body: JSON.stringify({ message, thread_id: getThreadId() }),
+    body: JSON.stringify({ message }),
   });
 
   if (res.status === 401 && retryOn401) {
@@ -88,7 +67,6 @@ export async function streamChat(message, { onToken, onStatus, onDone, onError }
     } catch {
       payload = { text: dataLines.join("\n") };
     }
-    if (payload.thread_id) setThreadId(payload.thread_id);
     if (eventName === "token" && payload.text) {
       assembled += payload.text;
       onToken?.(payload.text, assembled);

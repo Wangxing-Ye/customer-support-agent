@@ -5,7 +5,6 @@ import html
 import json
 import logging
 import os
-import uuid
 from io import BytesIO
 
 from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
@@ -17,15 +16,21 @@ from pydantic import BaseModel, field_validator
 
 from sqlalchemy import select
 
-from backend.auth import create_access_token, verify_jwt
+from backend.auth import create_access_token, thread_id_for_sid, verify_jwt
 from backend.config import (
     CORS_ORIGINS,
     FIRM_NAME,
+    JWT_EXPIRE_MINUTES,
+    JWT_REFRESH_SKEW_SECONDS,
     MAX_MESSAGE_WORDS,
     WHISPER_MODEL,
 )
 from backend.db import Base, engine, ensure_schema, session_scope
 from backend.models import Appointment, AvailabilityRule, EmailLog, Service, Ticket  # noqa: F401
+from backend.rate_limit import (
+    enforce_auth_refresh_limits,
+    enforce_auth_token_limits,
+)
 from backend.services.scheduling import finalize_paid_hold, seed_defaults
 from backend.services.stripe_checkout import live_checkout_url, parse_webhook_event
 from backend.services.tts import resolve_tts_provider, synthesize_speech_bytes
@@ -49,10 +54,23 @@ def _graph():
     return get_graph()
 
 
-def _thread_config(thread_id: str | None) -> dict:
-    tid = (thread_id or "").strip() or str(uuid.uuid4())
+def _thread_config_from_claims(claims: dict) -> tuple[dict, str]:
+    """LangGraph thread is derived from JWT sid — clients cannot pick another thread."""
+    tid = thread_id_for_sid(str(claims.get("sid") or ""))
     return {"configurable": {"thread_id": tid}}, tid
 
+
+def _token_response(issued: dict) -> dict:
+    return {
+        "access_token": issued["access_token"],
+        "token_type": issued.get("token_type") or "bearer",
+        "sid": issued["sid"],
+        "expires_in": issued["expires_in"],
+        "expires_at": issued["expires_at"],
+        "refresh_skew_seconds": JWT_REFRESH_SKEW_SECONDS,
+        "max_message_words": MAX_MESSAGE_WORDS,
+        "jwt_expire_minutes": JWT_EXPIRE_MINUTES,
+    }
 
 def _content_to_text(content) -> str:
     """Normalize LLM message content (str or Claude/OpenAI content blocks) to plain text."""
@@ -112,6 +130,7 @@ def on_startup() -> None:
 
 class ChatRequest(BaseModel):
     message: str
+    # Accepted for backward compatibility but ignored; thread comes from JWT sid.
     thread_id: str | None = None
 
     @field_validator("message")
@@ -141,13 +160,17 @@ class TtsRequest(BaseModel):
 
 
 @app.post("/auth/token")
-async def issue_token():
-    """Issue a short-lived JWT for the chat UI (protect JWT_SECRET in production)."""
-    return {
-        "access_token": create_access_token(),
-        "token_type": "bearer",
-        "max_message_words": MAX_MESSAGE_WORDS,
-    }
+async def issue_token(request: Request):
+    """Issue a short-lived anonymous session JWT (sid binds LangGraph thread)."""
+    enforce_auth_token_limits(request)
+    return _token_response(create_access_token())
+
+
+@app.post("/auth/refresh")
+async def refresh_token(request: Request, claims: dict = Depends(verify_jwt)):
+    """Extend the same anonymous sid with a new 30-minute JWT (requires valid Bearer)."""
+    enforce_auth_refresh_limits(sid=str(claims["sid"]), request=request)
+    return _token_response(create_access_token(sid=str(claims["sid"])))
 
 
 def _pay_html(title: str, body: str, extra_script: str = "") -> str:
@@ -280,7 +303,7 @@ async def stripe_webhook(request: Request):
 @app.post("/transcribe")
 async def transcribe_audio(
     file: UploadFile = File(...),
-    _: None = Depends(verify_jwt),
+    _claims: dict = Depends(verify_jwt),
 ):
     """Transcribe uploaded audio with OpenAI Speech-to-Text (Whisper)."""
     api_key = os.getenv("OPENAI_API_KEY")
@@ -324,8 +347,8 @@ async def transcribe_audio(
 
 
 @app.post("/chat")
-async def chat(req: ChatRequest, _: None = Depends(verify_jwt)):
-    config, tid = _thread_config(req.thread_id)
+async def chat(req: ChatRequest, claims: dict = Depends(verify_jwt)):
+    config, tid = _thread_config_from_claims(claims)
     result = _graph().invoke(
         {"messages": [HumanMessage(content=req.message)]},
         config=config,
@@ -334,9 +357,9 @@ async def chat(req: ChatRequest, _: None = Depends(verify_jwt)):
 
 
 @app.post("/chat/stream")
-async def chat_stream(req: ChatRequest, _: None = Depends(verify_jwt)):
+async def chat_stream(req: ChatRequest, claims: dict = Depends(verify_jwt)):
     """SSE stream of assistant tokens (+ optional status events)."""
-    config, tid = _thread_config(req.thread_id)
+    config, tid = _thread_config_from_claims(claims)
     graph = _graph()
 
     def event_gen():
@@ -402,7 +425,7 @@ async def chat_stream(req: ChatRequest, _: None = Depends(verify_jwt)):
 
 
 @app.post("/tts")
-async def synthesize_speech(req: TtsRequest, _: None = Depends(verify_jwt)):
+async def synthesize_speech(req: TtsRequest, _claims: dict = Depends(verify_jwt)):
     """Turn assistant text into speech audio bytes (OpenAI or ElevenLabs via TTS_PROVIDER)."""
     text = req.message.strip()
     if not text:
