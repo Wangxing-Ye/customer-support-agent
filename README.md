@@ -1,15 +1,15 @@
 # Client Services Agent (Professional Services)
 
-AI client-services assistant for **booking / appointment businesses**. The runnable demo is **Summit Advisory Group**. Users chat by text or microphone. Answers are grounded in a firm knowledge base (local Markdown, or optional self-hosted **RAGFlow**), orchestrated by **LangGraph**, and backed by **PostgreSQL** for inquiries, appointments, payment status, tickets, and outbound email.
+AI client-services assistant for **booking / appointment businesses**. The runnable demo is **Palo Alto Advisory CPA**. Users chat by text or microphone. Answers are grounded in a firm knowledge base (local Markdown, or optional self-hosted **RAGFlow**), orchestrated by **LangGraph**, and backed by **PostgreSQL** for inquiries, appointments, payment status, tickets, and outbound email.
 
 ## Background
 
 **ServiceEmma** (*Your AI front desk for client services*) is the product name for this client-services agent. This project concentrates on **booking / appointment businesses**: a catalog of services, a reservation, a pay-when rule, and a ticket when chat cannot resolve the question. 
 
-The shipped example is **single-tenant Summit Advisory Group** (consulting: intro call, strategy session, on-site document review). Swap firm env, `BRAND`, service catalog, and the local knowledge-base Markdown for another shop. The same agent also fits:
+The shipped example is **single-tenant Palo Alto Advisory CPA** (accounting: free 15-minute Zoom consult, paid 30- and 60-minute Zoom consultations with Stripe hold). Swap firm env, `BRAND`, service catalog, and the local knowledge-base Markdown for another shop. The same agent also fits:
 
 - Dental clinic — [Columbia Dental Care](https://www.columbia-dentalcare.com/)
-- Accounting — [Bay Area Accounting Solutions](https://www.bayareaaccountingsolutions.com/)
+- Consulting (historical sample KB) — Summit Advisory Group
 - Spa / beauty — [Geranium Spa](https://geraniumspa.com/)
 - Sports venue — [Synergy Badminton](https://www.synergybadminton.com/)
 - Education / classes — [Green Forest Art Studio](https://greenforestartstudio.com/)
@@ -36,7 +36,7 @@ This repo is a **lightweight, professional, shippable Client Services Agent**. I
 It is built so the owner can:
 
 - **Spend less time on repeat intake** — policy and catalog answers come from RAG; the widget handles text and voice.
-- **Turn free chat into paid work** — show services and prices, book a complimentary intro consult, book Strategy Sessions on the hour, and book on-site Document Review billed after the visit.
+- **Turn free chat into paid work** — show services and prices, book a complimentary 15-minute Zoom consult, and book paid 30- or 60-minute Zoom consultations on the hour (Stripe Checkout holds the slot until paid).
 - **Not lose the question** — if the user wants a person or the agent cannot resolve it, `create_ticket` stores the name, question, email, phone, and call window, computes `respond_by`, and emails the client a receipt. (Staff inbox notify is not in this release.)
 
 Phase 1 is **single-tenant**: one firm, Postgres, outbound email, embeddable chat. Multi-tenant white-label and inbox tools are out of scope.
@@ -46,8 +46,8 @@ Phase 1 is **single-tenant**: one firm, Postgres, outbound email, embeddable cha
 - Service catalog with pricing, photos, and bookable vs ticket-only services
 - On-the-hour availability (Mon–Fri, America/Los_Angeles; no noon / no half-hour starts)
 - Booking with confirmation email: cancellation code, Zoom or in-person location, Google Calendar add-event URL
-- Pay-when: free intro confirms immediately; Strategy Session holds the slot until **Stripe Checkout**; Document Review is billed after the visit
-- Complimentary Introductory Consultation (no per-email cap)
+- Pay-when: free initial consult confirms immediately; paid 30- and 60-minute consultations hold the slot until **Stripe Checkout**
+- Complimentary Free Initial Consultation (15 min Zoom; no per-email cap)
 - Cancel with **email + cancellation code** (hashed at rest; 24-hour self-service window)
 - Support tickets when the AI cannot resolve or the user wants a human: name, email, phone, preferred call window, question, server-computed **respond_by** SLA
 - Outbound email (`console` / `smtp` / `resend`) with a shared plaintext footer
@@ -57,7 +57,7 @@ Phase 1 is **single-tenant**: one firm, Postgres, outbound email, embeddable cha
 
 ## Design: catalog, booking, pay-when
 
-Appointment businesses share three layers. This demo keeps **one** `Service` / `Appointment` shape. Summit intro consults confirm immediately on Zoom; Strategy Sessions use Stripe Checkout to hold the slot. Capacity and extra verticals are still **not covered**.
+Appointment businesses share three layers. This demo keeps **one** `Service` / `Appointment` shape. Palo Alto Advisory CPA free consults confirm immediately on Zoom; paid consultations use Stripe Checkout to hold the slot. Capacity and extra verticals are still **not covered**.
 
 ### Catalog
 
@@ -65,8 +65,8 @@ Appointment businesses share three layers. This demo keeps **one** `Service` / `
 |                                                        | Phase 1                                                                                 |
 | ------------------------------------------------------ | --------------------------------------------------------------------------------------- |
 | Service name, duration, bookable vs ticket-only, photo | **Covered** (`services` + seed catalog)                                                 |
-| Price as display copy (e.g. USD 500 / hour)            | **Covered** (catalog text plus `price_cents` / currency)                                |
-| `price_cents` + currency for checkout                  | **Covered** (catalog amount; Strategy Session charges the Stripe product default price) |
+| Price as display copy (e.g. USD 175 / 30 min)          | **Covered** (catalog text plus `price_cents` / currency)                                |
+| `price_cents` + currency for checkout                  | **Covered** (catalog amount; paid consults charge the Stripe product default price)     |
 | `pay_when`: `none`                                     | `checkout_to_hold`                                                                      |
 | `fulfillment`: `online`                                | `in_person` (address vs meeting link)                                                   |
 | Capacity > 1 (court party, class seats)                | **Not covered** (implicit capacity = 1)                                                 |
@@ -96,10 +96,10 @@ Appointment businesses share three layers. This demo keeps **one** `Service` / `
 
 |                                                      | Phase 1                                                                                                                 |
 | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| Free intro (skip payment)                            | **Covered** (complimentary consult; no per-email cap)                                                                   |
-| Pay on arrival (book now, pay at the shop)           | **Covered** (`pay_when=pay_on_arrival`; not used on Summit seed)                                                        |
-| Pay after the visit (invoice)                        | **Covered** (`pay_when=pay_after`; Document Review, due in 3 business days)                                             |
-| Checkout to hold the slot (then `booked`)            | **Covered** — Stripe Checkout for Strategy Session (`STRIPE_PRODUCT_STRATEGY_SESSION`); webhook `POST /webhooks/stripe` |
+| Free intro (skip payment)                            | **Covered** (complimentary 15-min consult; no per-email cap)                                                            |
+| Pay on arrival (book now, pay at the shop)           | **Covered** (`pay_when=pay_on_arrival`; not used on Palo Alto Advisory CPA seed)                                                        |
+| Pay after the visit (invoice)                        | **Covered** (`pay_when=pay_after`; not used on Palo Alto Advisory CPA seed)                                                             |
+| Checkout to hold the slot (then `booked`)            | **Covered** — Stripe Checkout for `consult-30` / `consult-60` (`STRIPE_PRODUCT_CONSULT_30` / `_60`); webhook `POST /webhooks/stripe` |
 | Agent must not say “confirmed” until `status=booked` | **Covered** (prompt + tool `status=pending_payment` vs `booked`)                                                        |
 
 
@@ -116,7 +116,7 @@ Vite React widget → FastAPI → LangGraph agent
                        ├─ Knowledge retrieval (local Markdown or RAGFlow)
                        ├─ Postgres (services, availability, appointments, tickets, email_log)
                        ├─ LangGraph PostgresSaver (falls back to MemorySaver / SQLite)
-                       └─ Email provider (console | smtp | resend) + Stripe Checkout (Strategy Session)
+                       └─ Email provider (console | smtp | resend) + Stripe Checkout (paid consultations)
 ```
 
 
@@ -124,14 +124,14 @@ Vite React widget → FastAPI → LangGraph agent
 ## Demo services
 
 
-| Service                   | Slug               | Price                                       | Booking                                                                                           |
-| ------------------------- | ------------------ | ------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| Introductory Consultation | `intro-consult`    | Free, 30 min                                | Online, confirm immediately (`pay_when=none`)                                                     |
-| Strategy Session          | `strategy-session` | USD 500 / hour (1 hour)                     | Online, hold until Stripe Checkout (`checkout_to_hold`)                                           |
-| Document Review           | `document-review`  | USD 250 / hour, **4 working hours minimum** | On-site; lunch 12:00–1:00 PM excluded; finishes by 5 PM; pay within 3 business days (`pay_after`) |
+| Service                        | Slug           | Price                      | Booking                                                         |
+| ------------------------------ | -------------- | -------------------------- | --------------------------------------------------------------- |
+| Free Initial Consultation      | `free-consult` | Free, 15 min               | Zoom, confirm immediately (`pay_when=none`)                     |
+| 30-Minute Client Consultation  | `consult-30`   | USD 175 (30 minutes)       | Zoom, hold until Stripe Checkout (`checkout_to_hold`)           |
+| 60-Minute Client Consultation  | `consult-60`   | USD 350 (60 minutes)       | Zoom, hold until Stripe Checkout (`checkout_to_hold`)           |
 
 
-Slots offered: **9, 10, 11 AM and 1–5 PM** PT for 30- and 60-minute services. Document Review is **4 working hours** (lunch 12:00–1:00 PM not counted) and must finish by 5:00 PM, so starts are **9 AM (ends 2 PM), 10 AM (ends 3 PM), 11 AM (ends 4 PM), and 1:00 PM (ends 5 PM)**. Photos live under `frontend/public/assets/` (`intro-consult.jpg`, `strategy-session.jpg`, `document-review.jpg`).
+Slots offered: **9, 10, 11 AM and 1–5 PM** PT on the hour for all three services (15 / 30 / 60 minutes). Photos live under `frontend/public/assets/` (`Free-Initial-Consultation.jpg`, `30-Minute-Client-Consultation.jpg`, `60-Minute-Client-Consultation.jpg`).
 
 ## Booking, cancel, tickets
 
@@ -148,9 +148,9 @@ Templates: appointment confirmation, appointment cancelled, ticket created. Ever
 
 ```
 —
-Summit Advisory Group
+Palo Alto Advisory CPA
 Our service agent is available 24/7
-https://www.SummitAdvisoryGroup.com
+http://paloaltoadvisorycpa.com/
 ```
 
 Firm name and site come from `FIRM_NAME` and `FIRM_WEBSITE`. The assistant's display name is `AGENT_NAME` (default Emma).
@@ -259,7 +259,7 @@ Chat body: `{ "message": "...", "thread_id": "optional-uuid" }`. Site JWT authen
 
 ## Environment
 
-See [env_copy](env_copy). Important keys: `OPENAI_API_KEY`, `OPENAI_MODEL`, `LLM_PROVIDER` (`openai` / `anthropic` / `auto`), `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `JWT_SECRET`, `DATABASE_URL`, `KB_PROVIDER`, RAGFlow vars, `EMAIL_PROVIDER`, `EMAIL_FROM`, `FIRM_NAME`, `AGENT_NAME`, `FIRM_TIMEZONE`, `FIRM_WEBSITE`, `MEETING_LINK`, `FIRM_LOCATION`, `PUBLIC_BASE_URL`, `PAYMENT_HOLD_MINUTES`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRODUCT_STRATEGY_SESSION`. Whisper STT stays on OpenAI. TTS uses `TTS_PROVIDER` (`openai` / `elevenlabs`) with `OPENAI_TTS_*` or `ELEVENLABS_*`.
+See [env_copy](env_copy). Important keys: `OPENAI_API_KEY`, `OPENAI_MODEL`, `LLM_PROVIDER` (`openai` / `anthropic` / `auto`), `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `JWT_SECRET`, `DATABASE_URL`, `KB_PROVIDER`, RAGFlow vars, `EMAIL_PROVIDER`, `EMAIL_FROM`, `FIRM_NAME`, `AGENT_NAME`, `FIRM_TIMEZONE`, `FIRM_WEBSITE`, `MEETING_LINK`, `FIRM_LOCATION`, `PUBLIC_BASE_URL`, `PAYMENT_HOLD_MINUTES`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRODUCT_CONSULT_30`, `STRIPE_PRODUCT_CONSULT_60` (optional legacy `STRIPE_PRODUCT_STRATEGY_SESSION` fallback). Whisper STT stays on OpenAI. TTS uses `TTS_PROVIDER` (`openai` / `elevenlabs`) with `OPENAI_TTS_*` or `ELEVENLABS_*`.
 
 Local Stripe webhook forwarding:
 
@@ -267,7 +267,7 @@ Local Stripe webhook forwarding:
 stripe listen --forward-to localhost:8000/webhooks/stripe
 ```
 
-Use the CLI webhook secret in `STRIPE_WEBHOOK_SECRET`. The product must have an active default price. Checkout Session hold is at least 31 minutes (Stripe minimum).
+Use the CLI webhook secret in `STRIPE_WEBHOOK_SECRET`. Create Stripe products with default prices (USD 175 for `consult-30`, USD 350 for `consult-60`) and set `STRIPE_PRODUCT_CONSULT_30` / `STRIPE_PRODUCT_CONSULT_60`. If those are unset, the optional legacy `STRIPE_PRODUCT_STRATEGY_SESSION` is used as a fallback for both. Checkout Session hold is at least 31 minutes (Stripe minimum).
 
 Do not commit `.env` (it is gitignored).
 

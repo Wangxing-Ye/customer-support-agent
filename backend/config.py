@@ -45,14 +45,20 @@ else:
         ),
     )
 
-FIRM_NAME = os.getenv("FIRM_NAME", "Summit Advisory Group").strip() or "Summit Advisory Group"
+FIRM_NAME = (
+    os.getenv("FIRM_NAME", "Palo Alto Advisory CPA").strip()
+    or "Palo Alto Advisory CPA"
+)
 AGENT_NAME = (os.getenv("AGENT_NAME") or "Emma").strip() or "Emma"
 FIRM_TIMEZONE = os.getenv("FIRM_TIMEZONE", "America/Los_Angeles").strip()
 FIRM_WEBSITE = (
-    os.getenv("FIRM_WEBSITE", "https://www.SummitAdvisoryGroup.com").strip()
-    or "https://www.SummitAdvisoryGroup.com"
+    os.getenv("FIRM_WEBSITE", "http://paloaltoadvisorycpa.com/").strip()
+    or "http://paloaltoadvisorycpa.com/"
 )
-FIRM_LOCATION = os.getenv("FIRM_LOCATION", "").strip()
+FIRM_LOCATION = os.getenv(
+    "FIRM_LOCATION",
+    "1451 Middlefield Rd, Palo Alto, CA 94301",
+).strip()
 PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
 PAYMENT_HOLD_MINUTES = int(os.getenv("PAYMENT_HOLD_MINUTES", "15"))
 BUSINESS_HOURS_START = int(os.getenv("BUSINESS_HOURS_START", "9"))
@@ -65,8 +71,8 @@ CANCEL_CODE_PEPPER = os.getenv("CANCEL_CODE_PEPPER", JWT_SECRET or "dev-pepper-c
 _raw_kb_provider = os.getenv("KB_PROVIDER", "auto").strip().lower()
 KB_PROVIDER = _raw_kb_provider if _raw_kb_provider in ("auto", "local", "ragflow") else "auto"
 KB_LOCAL_PATH = os.getenv(
-    "KB_LOCAL_PATH", "docs/kb/summit-advisory-group.md"
-).strip() or "docs/kb/summit-advisory-group.md"
+    "KB_LOCAL_PATH", "docs/kb/palo-alto-advisory-cpa.md"
+).strip() or "docs/kb/palo-alto-advisory-cpa.md"
 
 RAGFLOW_URL = os.getenv("RAGFLOW_URL", "http://127.0.0.1:9222").rstrip("/")
 RAGFLOW_API_KEY = os.getenv("RAGFLOW_API_KEY")
@@ -139,6 +145,9 @@ MEETING_LINK = os.getenv(
 
 STRIPE_SECRET_KEY = (os.getenv("STRIPE_SECRET_KEY") or "").strip()
 STRIPE_WEBHOOK_SECRET = (os.getenv("STRIPE_WEBHOOK_SECRET") or "").strip()
+STRIPE_PRODUCT_CONSULT_30 = (os.getenv("STRIPE_PRODUCT_CONSULT_30") or "").strip()
+STRIPE_PRODUCT_CONSULT_60 = (os.getenv("STRIPE_PRODUCT_CONSULT_60") or "").strip()
+# Optional legacy fallback so existing env with STRATEGY_SESSION still works.
 STRIPE_PRODUCT_STRATEGY_SESSION = (os.getenv("STRIPE_PRODUCT_STRATEGY_SESSION") or "").strip()
 
 TICKET_DEDUP_HOURS = int(os.getenv("TICKET_DEDUP_HOURS", "24"))

@@ -1,5 +1,7 @@
 # Sample knowledge base content for RAGFlow (professional services)
 
+> **Superseded for the runnable demo.** The active tenant KB is [palo-alto-advisory-cpa.md](palo-alto-advisory-cpa.md) (Palo Alto Advisory CPA). This Summit file is kept for historical reference only.
+
 ## About Summit Advisory Group
 Summit Advisory Group provides consulting and advisory services for small businesses in the United States. We help with strategy, process improvement, and project scoping. We do not provide formal legal, tax, or medical advice through this chat assistant. The chat assistant's name is Emma (ServiceEmma front desk for this firm).
 

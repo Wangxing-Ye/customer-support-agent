@@ -18,22 +18,22 @@ marked.use({
 /** slug/name → public asset (Vite serves frontend/public at /) */
 export const SERVICE_IMAGES = [
   {
-    slug: "intro-consult",
-    names: ["introductory consultation", "intro consult"],
-    file: "/assets/intro-consult.jpg",
-    alt: "Introductory Consultation",
+    slug: "free-consult",
+    names: ["free initial consultation", "free consult"],
+    file: "/assets/Free-Initial-Consultation.jpg",
+    alt: "Free Initial Consultation",
   },
   {
-    slug: "strategy-session",
-    names: ["strategy session"],
-    file: "/assets/strategy-session.jpg",
-    alt: "Strategy Session",
+    slug: "consult-30",
+    names: ["30-minute client consultation", "30-minute consultation"],
+    file: "/assets/30-Minute-Client-Consultation.jpg",
+    alt: "30-Minute Client Consultation",
   },
   {
-    slug: "document-review",
-    names: ["document review"],
-    file: "/assets/document-review.jpg",
-    alt: "Document Review",
+    slug: "consult-60",
+    names: ["60-minute client consultation", "60-minute consultation"],
+    file: "/assets/60-Minute-Client-Consultation.jpg",
+    alt: "60-Minute Client Consultation",
   },
 ];
 

@@ -10,14 +10,14 @@ JWT_SECRET=change-me-to-a-long-random-string
 CORS_ORIGINS=http://127.0.0.1:3000,http://localhost:3000,http://127.0.0.1:3003,http://localhost:3003,http://127.0.0.1:4173,http://localhost:4173
 
 # Firm branding (single-tenant demo)
-FIRM_NAME=Summit Advisory Group
+FIRM_NAME=Palo Alto Advisory CPA
 AGENT_NAME=Emma
 FIRM_TIMEZONE=America/Los_Angeles
-FIRM_WEBSITE=https://www.SummitAdvisoryGroup.com
-FIRM_LOCATION=
+FIRM_WEBSITE=http://paloaltoadvisorycpa.com/
+FIRM_LOCATION=1451 Middlefield Rd, Palo Alto, CA 94301
 PUBLIC_BASE_URL=http://127.0.0.1:8000
 PAYMENT_HOLD_MINUTES=15
-RAG_BRAND_PREFIX=Summit Advisory Group
+RAG_BRAND_PREFIX=Palo Alto Advisory CPA
 RAG_BRAND_RETRY_SKIP_SUBSTRINGS=
 
 # PostgreSQL (preferred)
@@ -31,7 +31,7 @@ CHECKPOINT_DATABASE_URL=postgresql://pst:pst@127.0.0.1:5433/pst_agent
 # Knowledge base: auto | local | ragflow
 # auto = RAGFlow when API key + dataset id are set, otherwise local Markdown
 KB_PROVIDER=auto
-KB_LOCAL_PATH=docs/kb/summit-advisory-group.md
+KB_LOCAL_PATH=docs/kb/palo-alto-advisory-cpa.md
 # RAGFlow (optional; free self-hosted)
 RAGFLOW_URL=http://127.0.0.1:8888
 RAGFLOW_API_KEY=
@@ -73,8 +73,12 @@ ELEVENLABS_API_KEY=
 ELEVENLABS_TTS_VOICE_ID=
 ELEVENLABS_TTS_MODEL=eleven_multilingual_v2
 
-# Stripe Checkout (Strategy Session). Webhook: POST {PUBLIC_BASE_URL}/webhooks/stripe
+# Stripe Checkout (paid Zoom consultations). Webhook: POST {PUBLIC_BASE_URL}/webhooks/stripe
 # Local: stripe listen --forward-to localhost:8000/webhooks/stripe
+# Create products with default prices: consult-30 = USD 175, consult-60 = USD 350
 STRIPE_SECRET_KEY=
 STRIPE_WEBHOOK_SECRET=
+STRIPE_PRODUCT_CONSULT_30=
+STRIPE_PRODUCT_CONSULT_60=
+# Optional legacy fallback if CONSULT_* unset (older Summit env)
 STRIPE_PRODUCT_STRATEGY_SESSION=

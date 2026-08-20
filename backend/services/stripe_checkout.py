@@ -1,4 +1,4 @@
-"""Stripe Checkout for pay_when=checkout_to_hold (Strategy Session)."""
+"""Stripe Checkout for pay_when=checkout_to_hold (paid Zoom consultations)."""
 from __future__ import annotations
 
 import logging
@@ -9,6 +9,8 @@ import stripe
 from backend.config import (
     PAYMENT_HOLD_MINUTES,
     PUBLIC_BASE_URL,
+    STRIPE_PRODUCT_CONSULT_30,
+    STRIPE_PRODUCT_CONSULT_60,
     STRIPE_PRODUCT_STRATEGY_SESSION,
     STRIPE_SECRET_KEY,
     STRIPE_WEBHOOK_SECRET,
@@ -20,7 +22,8 @@ logger = logging.getLogger(__name__)
 STRIPE_MIN_HOLD_MINUTES = 31
 
 PRODUCT_BY_SLUG = {
-    "strategy-session": STRIPE_PRODUCT_STRATEGY_SESSION,
+    "consult-30": STRIPE_PRODUCT_CONSULT_30 or STRIPE_PRODUCT_STRATEGY_SESSION,
+    "consult-60": STRIPE_PRODUCT_CONSULT_60 or STRIPE_PRODUCT_STRATEGY_SESSION,
 }
 
 

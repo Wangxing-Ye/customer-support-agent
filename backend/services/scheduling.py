@@ -118,62 +118,56 @@ def format_slot_clock(dt: datetime) -> str:
 
 
 SERVICE_IMAGES = {
-    "intro-consult": "/assets/intro-consult.jpg",
-    "strategy-session": "/assets/strategy-session.jpg",
-    "document-review": "/assets/document-review.jpg",
+    "free-consult": "/assets/Free-Initial-Consultation.jpg",
+    "consult-30": "/assets/30-Minute-Client-Consultation.jpg",
+    "consult-60": "/assets/60-Minute-Client-Consultation.jpg",
 }
 
 SERVICE_CATALOG = {
-    "intro-consult": {
-        "name": "Introductory Consultation",
+    "free-consult": {
+        "name": "Free Initial Consultation",
         "description": (
-            "Complimentary 30-minute discovery call to discuss your needs."
+            "Complimentary 15-minute Zoom consultation for prospective clients "
+            "to discuss your situation and next steps."
         ),
-        "duration_minutes": 30,
+        "duration_minutes": 15,
         "bookable": True,
-        "price": "Free (30 minutes)",
+        "price": "Free (15 minutes)",
         "price_cents": 0,
         "currency": "USD",
         "pay_when": "none",
         "fulfillment": "online",
         "location_text": MEETING_LINK,
     },
-    "strategy-session": {
-        "name": "Strategy Session",
+    "consult-30": {
+        "name": "30-Minute Client Consultation",
         "description": (
-            "One-hour working session with a senior advisor. "
-            "Priced at USD 500 per hour; each Strategy Session is one hour. "
-            "The slot is held until Stripe Checkout is completed."
+            "Thirty-minute Zoom consultation with the firm. "
+            "Priced at USD 175. The slot is held until Stripe Checkout is completed."
         ),
-        "duration_minutes": 60,
+        "duration_minutes": 30,
         "bookable": True,
-        "price": "USD 500 per hour (1 hour per session)",
-        "price_cents": 50000,
+        "price": "USD 175 (30 minutes)",
+        "price_cents": 17500,
         "currency": "USD",
         "pay_when": "checkout_to_hold",
         "fulfillment": "online",
         "location_text": MEETING_LINK,
     },
-    "document-review": {
-        "name": "Document Review",
+    "consult-60": {
+        "name": "60-Minute Client Consultation",
         "description": (
-            "On-site guidance to organize, collect, interpret, and discuss documents "
-            "across functions such as management, product, marketing, sales, finance, "
-            "and HR. Bookable online. Minimum booking is 4 working hours "
-            "(lunch 12:00–1:00 PM is not counted). "
-            "Billed at USD 250 per hour for actual time (4-hour working minimum); "
-            "payment is due within 3 business days after the visit."
+            "One-hour Zoom consultation with the firm. "
+            "Priced at USD 350. The slot is held until Stripe Checkout is completed."
         ),
-        "duration_minutes": 240,
+        "duration_minutes": 60,
         "bookable": True,
-        "price": "USD 250 per hour, 4 working hours minimum (lunch 12–1 excluded); due within 3 business days after the visit",
-        "price_cents": 25000,
+        "price": "USD 350 (60 minutes)",
+        "price_cents": 35000,
         "currency": "USD",
-        "pay_when": "pay_after",
-        "fulfillment": "in_person",
-        "location_text": (
-            "On-site at your office (management, product, marketing, sales, finance, HR as needed)"
-        ),
+        "pay_when": "checkout_to_hold",
+        "fulfillment": "online",
+        "location_text": MEETING_LINK,
     },
 }
 
@@ -221,10 +215,14 @@ def expire_stale_holds(session: Session, skip_appointment_id: str | None = None)
 
 
 def service_image_url(service: Service) -> str:
+    # Prefer catalog so asset renames apply without waiting on stale DB rows.
+    catalog = SERVICE_IMAGES.get(service.slug)
+    if catalog:
+        return catalog
     stored = (getattr(service, "image_url", None) or "").strip()
     if stored:
         return stored
-    return SERVICE_IMAGES.get(service.slug, f"/assets/{service.slug}.jpg")
+    return f"/assets/{service.slug}.jpg"
 
 
 def list_services(session: Session) -> str:
@@ -1015,8 +1013,7 @@ def seed_defaults(session: Session) -> None:
             row.duration_minutes = spec["duration_minutes"]
             row.bookable = spec["bookable"]
             row.active = True
-            if not (getattr(row, "image_url", None) or "").strip():
-                row.image_url = image
+            row.image_url = image
             row.price_cents = spec.get("price_cents", 0)
             row.currency = spec.get("currency", "USD")
             row.pay_when = spec.get("pay_when", "none")

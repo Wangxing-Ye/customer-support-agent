@@ -38,7 +38,7 @@ export const MAX_WORDS = DEFAULT_MAX_WORDS;
  * and quickActions for another appointment business; keep the same agent.
  */
 export const BRAND = {
-  firmName: "Summit Advisory Group",
+  firmName: "Palo Alto Advisory CPA",
   /** Header title; defaults to firmName (FIRM_NAME for this tenant). */
   get widgetTitle() {
     return this.firmName;
@@ -46,7 +46,7 @@ export const BRAND = {
   widgetSubtitle: "Appointments • Booking & Tickets",
   version: "V 0.50",
   avatarSrc: "/assets/avatar.png",
-  avatarAlt: "Advisor",
+  avatarAlt: "CPA",
   greeting: (name) =>
     `Hi, I'm Emma with ${name}. How can I help today — booking, a quick question, or something else?`,
   quickActions: [
