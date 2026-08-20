@@ -161,6 +161,22 @@ Open [http://localhost:3003](http://localhost:3003) after starting frontend + ba
 
 Header title, subtitle, greeting, and quick-action chips come from `BRAND` in [frontend/src/config.js](frontend/src/config.js). Change that object for another appointment business; keep the same agent. Default chips: **Our Services**, **Book appointment**, **Check appointment**, **Cancel appointment**, **Support Ticket**. Text chat uses `POST /chat/stream` (SSE). Voice uses `POST /chat` then TTS. Service images in replies can be clicked to enlarge.
 
+## Screenshots
+
+Widget demo for **Palo Alto Advisory CPA** (assets under `frontend/assets/`):
+
+### Book appointment — catalog with service photos
+
+![Book appointment with service photos](frontend/assets/Screenshot%201.jpg)
+
+### Paid consultation — Stripe hold (not yet confirmed)
+
+![Paid consultation held until Stripe Checkout](frontend/assets/Screenshot%202.jpg)
+
+### Pay with Stripe — payment received
+
+![Stripe payment confirmed](frontend/assets/Screenshot%203.jpg)
+
 ## Quick start
 
 
