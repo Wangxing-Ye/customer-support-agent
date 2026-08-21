@@ -1,18 +1,8 @@
 # Client Services Agent (Professional Services)
 
-AI client-services assistant for **booking / appointment businesses**. The runnable demo is **Palo Alto Advisory CPA**. Users chat by text or microphone. Answers are grounded in a firm knowledge base (local Markdown, or optional self-hosted **RAGFlow**), orchestrated by **LangGraph**, and backed by **PostgreSQL** for inquiries, appointments, payment status, tickets, and outbound email.
+A client-services AI Agent for **booking / appointment businesses**. **ServiceEmma** is the product name. This project focuses on **booking and appointment businesses**: online Q&A, a service catalog, reservations, pay-when rules, and tickets when chat cannot resolve the question.
 
 ## Background
-
-**ServiceEmma** (*Your AI front desk for client services*) is the product name for this client-services agent. This project concentrates on **booking / appointment businesses**: a catalog of services, a reservation, a pay-when rule, and a ticket when chat cannot resolve the question. 
-
-The shipped example is **single-tenant Palo Alto Advisory CPA** (accounting: free 15-minute Zoom consult, paid 30- and 60-minute Zoom consultations with Stripe hold). Swap firm env, `BRAND`, service catalog, and the local knowledge-base Markdown for another shop. The same agent also fits:
-
-- Dental clinic — [Columbia Dental Care](https://www.columbia-dentalcare.com/)
-- Consulting (historical sample KB) — Summit Advisory Group
-- Spa / beauty — [Geranium Spa](https://geraniumspa.com/)
-- Sports venue — [Synergy Badminton](https://www.synergybadminton.com/)
-- Education / classes — [Green Forest Art Studio](https://greenforestartstudio.com/)
 
 Major U.S. industries that need online appointment / booking services, with estimated small and midsize business counts (nonemployer firms plus employers with fewer than 500 employees):
 
@@ -29,19 +19,17 @@ Major U.S. industries that need online appointment / booking services, with esti
 | **Total**                                                         | **~7.7–8.3 million** |
 
 
-Multi-staff capacity, Stripe Connect, and a live second tenant are not included.
-
-This repo is a **lightweight, professional, shippable Client Services Agent**. It is not a generic auto-reply bot. The assistant grounds answers in a firm knowledge base (local Markdown by default; RAGFlow when configured), books or cancels appointments, and escalates to a human via a support ticket. It does **not** give licensed legal, tax, or medical advice.
+This repo is a **lightweight, professional, shippable Client Services Agent**. It is not a generic auto-reply bot. The assistant grounds answers in a firm knowledge base (local Markdown by default; RAGFlow when configured), books or cancels appointments, and escalates to a human via a support ticket. 
 
 It is built so the owner can:
 
-- **Spend less time on repeat intake** — policy and catalog answers come from RAG; the widget handles text and voice.
-- **Turn free chat into paid work** — show services and prices, book a complimentary 15-minute Zoom consult, and book paid 30- or 60-minute Zoom consultations on the hour (Stripe Checkout holds the slot until paid).
-- **Not lose the question** — if the user wants a person or the agent cannot resolve it, `create_ticket` stores the name, question, email, phone, and call window, computes `respond_by`, and emails the client a receipt. (Staff inbox notify is not in this release.)
+- **Spend less time on repeat intake** — grounded in the knowledge base (RAG), the agent answers questions about the company info, services, contact details, policies, and other frequent FAQs.
+- **Turn free chat into paid work** — a customer-acquisition window that shows services and prices, then guides clients to book and pay in the conversation.
+- **Not lose the question** — if the user has other needs or wants a person, open a ticket so feedback is tracked and follow-up stays on track.
 
-Phase 1 is **single-tenant**: one firm, Postgres, outbound email, embeddable chat. Multi-tenant white-label and inbox tools are out of scope.
+The shipped example is **single-tenant Palo Alto Advisory CPA.** 
 
-## Features (phase 1)
+## Features
 
 - Service catalog with pricing, photos, and bookable vs ticket-only services
 - On-the-hour availability (Mon–Fri, America/Los_Angeles; no noon / no half-hour starts)
@@ -62,15 +50,15 @@ Appointment businesses share three layers. This demo keeps **one** `Service` / `
 ### Catalog
 
 
-|                                                        | Phase 1                                                                                 |
-| ------------------------------------------------------ | --------------------------------------------------------------------------------------- |
-| Service name, duration, bookable vs ticket-only, photo | **Covered** (`services` + seed catalog)                                                 |
-| Price as display copy (e.g. USD 175 / 30 min)          | **Covered** (catalog text plus `price_cents` / currency)                                |
-| `price_cents` + currency for checkout                  | **Covered** (catalog amount; paid consults charge the Stripe product default price)     |
-| `pay_when`: `none`                                     | `checkout_to_hold`                                                                      |
-| `fulfillment`: `online`                                | `in_person` (address vs meeting link)                                                   |
-| Capacity > 1 (court party, class seats)                | **Not covered** (implicit capacity = 1)                                                 |
-| Location / staff / court as a bookable resource        | **Not covered**                                                                         |
+|                                                        | Phase 1                                                                             |
+| ------------------------------------------------------ | ----------------------------------------------------------------------------------- |
+| Service name, duration, bookable vs ticket-only, photo | **Covered** (`services` + seed catalog)                                             |
+| Price as display copy (e.g. USD 175 / 30 min)          | **Covered** (catalog text plus `price_cents` / currency)                            |
+| `price_cents` + currency for checkout                  | **Covered** (catalog amount; paid consults charge the Stripe product default price) |
+| `pay_when`: `none`                                     | `checkout_to_hold`                                                                  |
+| `fulfillment`: `online`                                | `in_person` (address vs meeting link)                                               |
+| Capacity > 1 (court party, class seats)                | **Not covered** (implicit capacity = 1)                                             |
+| Location / staff / court as a bookable resource        | **Not covered**                                                                     |
 
 
 
@@ -78,7 +66,7 @@ Appointment businesses share three layers. This demo keeps **one** `Service` / `
 ### Booking
 
 
-|                                                                                         | Phase 1                                                      |
+|                                                                                         |                                                              |
 | --------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
 | Name + email, hourly open slots, confirm email, cancel code                             | **Covered**                                                  |
 | Status `booked` immediately when `pay_when` is `none`, `pay_on_arrival`, or `pay_after` | **Covered**                                                  |
@@ -94,13 +82,13 @@ Appointment businesses share three layers. This demo keeps **one** `Service` / `
 ### Pay-when
 
 
-|                                                      | Phase 1                                                                                                                 |
-| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| Free intro (skip payment)                            | **Covered** (complimentary 15-min consult; no per-email cap)                                                            |
-| Pay on arrival (book now, pay at the shop)           | **Covered** (`pay_when=pay_on_arrival`; not used on Palo Alto Advisory CPA seed)                                                        |
-| Pay after the visit (invoice)                        | **Covered** (`pay_when=pay_after`; not used on Palo Alto Advisory CPA seed)                                                             |
+|                                                      |                                                                                                                                      |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Free intro (skip payment)                            | **Covered** (complimentary 15-min consult; no per-email cap)                                                                         |
+| Pay on arrival (book now, pay at the shop)           | **Covered** (`pay_when=pay_on_arrival`; not used on Palo Alto Advisory CPA seed)                                                     |
+| Pay after the visit (invoice)                        | **Covered** (`pay_when=pay_after`; not used on Palo Alto Advisory CPA seed)                                                          |
 | Checkout to hold the slot (then `booked`)            | **Covered** — Stripe Checkout for `consult-30` / `consult-60` (`STRIPE_PRODUCT_CONSULT_30` / `_60`); webhook `POST /webhooks/stripe` |
-| Agent must not say “confirmed” until `status=booked` | **Covered** (prompt + tool `status=pending_payment` vs `booked`)                                                        |
+| Agent must not say “confirmed” until `status=booked` | **Covered** (prompt + tool `status=pending_payment` vs `booked`)                                                                     |
 
 
 Cancel codes exist only after **booked**. Unpaid `pending_payment` rows expire; they cannot be cancelled with a code.
@@ -124,11 +112,11 @@ Vite React widget → FastAPI → LangGraph agent
 ## Demo services
 
 
-| Service                        | Slug           | Price                      | Booking                                                         |
-| ------------------------------ | -------------- | -------------------------- | --------------------------------------------------------------- |
-| Free Initial Consultation      | `free-consult` | Free, 15 min               | Zoom, confirm immediately (`pay_when=none`)                     |
-| 30-Minute Client Consultation  | `consult-30`   | USD 175 (30 minutes)       | Zoom, hold until Stripe Checkout (`checkout_to_hold`)           |
-| 60-Minute Client Consultation  | `consult-60`   | USD 350 (60 minutes)       | Zoom, hold until Stripe Checkout (`checkout_to_hold`)           |
+| Service                       | Slug           | Price                | Booking                                               |
+| ----------------------------- | -------------- | -------------------- | ----------------------------------------------------- |
+| Free Initial Consultation     | `free-consult` | Free, 15 min         | Zoom, confirm immediately (`pay_when=none`)           |
+| 30-Minute Client Consultation | `consult-30`   | USD 175 (30 minutes) | Zoom, hold until Stripe Checkout (`checkout_to_hold`) |
+| 60-Minute Client Consultation | `consult-60`   | USD 350 (60 minutes) | Zoom, hold until Stripe Checkout (`checkout_to_hold`) |
 
 
 Slots offered: **9, 10, 11 AM and 1–5 PM** PT on the hour for all three services (15 / 30 / 60 minutes). Photos live under `frontend/public/assets/` (`Free-Initial-Consultation.jpg`, `30-Minute-Client-Consultation.jpg`, `60-Minute-Client-Consultation.jpg`).
@@ -167,15 +155,15 @@ Widget demo for **Palo Alto Advisory CPA** (assets under `docs/`):
 
 ### Book appointment — catalog with service photos
 
-![Book appointment with service photos](docs/Screenshot%201.jpg)
+Book appointment with service photos
 
 ### Paid consultation — Stripe hold (not yet confirmed)
 
-![Paid consultation held until Stripe Checkout](docs/Screenshot%202.jpg)
+Paid consultation held until Stripe Checkout
 
 ### Pay with Stripe — payment received
 
-![Stripe payment confirmed](docs/Screenshot%203.jpg)
+Stripe payment confirmed
 
 ## Quick start
 
@@ -247,44 +235,50 @@ Optional RAGFlow: upload that sample Markdown (or your own KB), then set `RAGFLO
 ## API
 
 
-| Endpoint                | Purpose                                                            |
-| ----------------------- | ------------------------------------------------------------------ |
+| Endpoint                | Purpose                                                                   |
+| ----------------------- | ------------------------------------------------------------------------- |
 | `POST /auth/token`      | Anonymous session JWT (`sid`, 30 min TTL by default); rate-limited per IP |
 | `POST /auth/refresh`    | Same `sid`, new JWT (Bearer required; rate-limited per sid / IP)          |
-| `POST /chat`            | Sync chat (used by voice path); thread = `chat:{sid}`              |
-| `POST /chat/stream`     | SSE token stream (text UI); thread = `chat:{sid}`                  |
-| `POST /transcribe`      | Whisper STT (OpenAI)                                               |
-| `POST /tts`             | Speech synthesis (`TTS_PROVIDER`: OpenAI or ElevenLabs)            |
-| `POST /webhooks/stripe` | Stripe Checkout events (no JWT; verify `STRIPE_WEBHOOK_SECRET`)    |
-| `GET /pay/status`       | Appointment `status` for the chat widget (no JWT / no cancel code) |
-| `GET /pay/success`      | Post-checkout landing page (notifies the chat tab)                 |
-| `GET /pay/cancel`       | Checkout cancelled landing page                                    |
+| `POST /chat`            | Sync chat (used by voice path); thread = `chat:{sid}`                     |
+| `POST /chat/stream`     | SSE token stream (text UI); thread = `chat:{sid}`                         |
+| `POST /transcribe`      | Whisper STT (OpenAI)                                                      |
+| `POST /tts`             | Speech synthesis (`TTS_PROVIDER`: OpenAI or ElevenLabs)                   |
+| `POST /webhooks/stripe` | Stripe Checkout events (no JWT; verify `STRIPE_WEBHOOK_SECRET`)           |
+| `GET /pay/status`       | Appointment `status` for the chat widget (no JWT / no cancel code)        |
+| `GET /pay/success`      | Post-checkout landing page (notifies the chat tab)                        |
+| `GET /pay/cancel`       | Checkout cancelled landing page                                           |
 
 
 Chat body: `{ "message": "..." }` (`thread_id` is ignored if sent). Appointment cancel still requires **email + cancel code**, not the site JWT.
 
 ### Anonymous session and access control
 
-| Item | Behavior |
-| ---- | -------- |
-| Identity | Anonymous JWT (`sub=anonymous-chat`). Not a login account; unrelated to appointment cancel codes. |
-| Issue | `POST /auth/token` → new `sid` + Bearer token |
-| Refresh | `POST /auth/refresh` (valid Bearer required) → **same `sid`**, new `exp` only |
-| TTL | `SESSION_JWT_EXPIRE_MINUTES` (default 30). Frontend silently refreshes within `JWT_REFRESH_SKEW_SECONDS`. |
-| Thread binding | LangGraph `thread_id = chat:{sid}` is **server-derived**; any client `thread_id` is ignored |
-| JWT required | `/chat`, `/chat/stream`, `/transcribe`, `/tts`, `/auth/refresh` |
-| No JWT | Stripe webhook, `/pay/*` landing and status endpoints |
-| Secrets / storage | `JWT_SECRET` + `JWT_AUDIENCE`; widget stores the token in `sessionStorage` |
+
+| Item              | Behavior                                                                                                  |
+| ----------------- | --------------------------------------------------------------------------------------------------------- |
+| Identity          | Anonymous JWT (`sub=anonymous-chat`). Not a login account; unrelated to appointment cancel codes.         |
+| Issue             | `POST /auth/token` → new `sid` + Bearer token                                                             |
+| Refresh           | `POST /auth/refresh` (valid Bearer required) → **same** `sid`, new `exp` only                             |
+| TTL               | `SESSION_JWT_EXPIRE_MINUTES` (default 30). Frontend silently refreshes within `JWT_REFRESH_SKEW_SECONDS`. |
+| Thread binding    | LangGraph `thread_id = chat:{sid}` is **server-derived**; any client `thread_id` is ignored               |
+| JWT required      | `/chat`, `/chat/stream`, `/transcribe`, `/tts`, `/auth/refresh`                                           |
+| No JWT            | Stripe webhook, `/pay/*` landing and status endpoints                                                     |
+| Secrets / storage | `JWT_SECRET` + `JWT_AUDIENCE`; widget stores the token in `sessionStorage`                                |
+
+
+
 
 ### Session rate limits
 
 In-process sliding windows (phase 1, **per API worker**). Over-limit → **429** with `Retry-After`. Multi-instance deployments should move counters to Redis later.
 
-| Variable | Default | Effect |
-| -------- | ------- | ------ |
-| `SESSION_PER_IP_PER_HOUR` | 60 | Max `POST /auth/token` (new sid) per client IP per rolling hour |
-| `SESSION_REFRESH_PER_SID_PER_MINUTE` | 10 | Max refresh per `sid` per minute; soft per-IP cap ≈ 3× that rate |
-| `TRUST_PROXY_HEADERS` | `false` | Trust `X-Forwarded-For` only behind a known reverse proxy |
+
+| Variable                             | Default | Effect                                                           |
+| ------------------------------------ | ------- | ---------------------------------------------------------------- |
+| `SESSION_PER_IP_PER_HOUR`            | 60      | Max `POST /auth/token` (new sid) per client IP per rolling hour  |
+| `SESSION_REFRESH_PER_SID_PER_MINUTE` | 10      | Max refresh per `sid` per minute; soft per-IP cap ≈ 3× that rate |
+| `TRUST_PROXY_HEADERS`                | `false` | Trust `X-Forwarded-For` only behind a known reverse proxy        |
+
 
 Refresh does **not** mint a new session and does **not** reset the chat-turn quota below.
 
@@ -292,12 +286,14 @@ Refresh does **not** mint a new session and does **not** reset the chat-turn quo
 
 There is no direct OpenAI/Anthropic RPM integration. Volume is capped by **chat turns per sid** plus **input size** limits.
 
-| Variable | Default | Effect |
-| -------- | ------- | ------ |
-| `SESSION_CHAT_TURNS_PER_SID` | 100 | Lifetime max user turns on `POST /chat` and `POST /chat/stream` per `sid` (not internal LLM `invoke`s). Refresh does not reset. `0` disables. |
-| `USER_INPUT_MAX_MESSAGE_WORDS` | 150 | Max words per chat message |
-| `TTS_MAX_CHARS` | 2000 | Max characters per `/tts` request |
-| `WHISPER_MIN_BYTES` / `WHISPER_MAX_BYTES` | 256 / 3 MiB | Audio size bounds for `/transcribe` (oversize → 413) |
+
+| Variable                                  | Default     | Effect                                                                                                                                        |
+| ----------------------------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SESSION_CHAT_TURNS_PER_SID`              | 100         | Lifetime max user turns on `POST /chat` and `POST /chat/stream` per `sid` (not internal LLM `invoke`s). Refresh does not reset. `0` disables. |
+| `USER_INPUT_MAX_MESSAGE_WORDS`            | 150         | Max words per chat message                                                                                                                    |
+| `TTS_MAX_CHARS`                           | 2000        | Max characters per `/tts` request                                                                                                             |
+| `WHISPER_MIN_BYTES` / `WHISPER_MAX_BYTES` | 256 / 3 MiB | Audio size bounds for `/transcribe` (oversize → 413)                                                                                          |
+
 
 Rough upper bound with defaults: about **60 new sid/IP/hour × 100 turns ≈ 6000 chat requests/IP/hour** (same process / same in-memory counters).
 
@@ -327,9 +323,10 @@ Use the CLI webhook secret in `STRIPE_WEBHOOK_SECRET`. Create Stripe products wi
 
 Do not commit `.env` (it is gitignored).
 
-## Phase 2 (not in this release)
+## **Next Steps**
 
-Stripe Connect, capacity and multi-location resources, multi-tenant white-label (ServiceEmma), Calendly/Google Calendar API sync, reschedule, inbound email, magic-link cancel page, Chatwoot.
+1. Reschedule, SMS alerts, visit reminders, and an owner dashboard for appointments and tickets.
+2. **Multi-tenant SaaS design**
 
 ## License
 
