@@ -23,6 +23,9 @@ JWT_REFRESH_SKEW_SECONDS = int(os.getenv("JWT_REFRESH_SKEW_SECONDS", "300"))
 # Max new sessions per client IP per rolling hour (per API process).
 SESSION_PER_IP_PER_HOUR = int(os.getenv("SESSION_PER_IP_PER_HOUR", "60"))
 SESSION_REFRESH_PER_SID_PER_MINUTE = int(os.getenv("SESSION_REFRESH_PER_SID_PER_MINUTE", "10"))
+# Max POST /chat (+ /chat/stream) per anonymous sid for the lifetime of that sid
+# (refresh keeps the same sid and the same counter). 0 disables.
+SESSION_CHAT_TURNS_PER_SID = int(os.getenv("SESSION_CHAT_TURNS_PER_SID", "100"))
 # Only trust X-Forwarded-For when the app sits behind a known reverse proxy.
 TRUST_PROXY_HEADERS = os.getenv("TRUST_PROXY_HEADERS", "false").lower() in (
     "1",
@@ -118,6 +121,12 @@ if _raw_llm_provider in ("openai", "anthropic", "auto"):
 else:
     LLM_PROVIDER = "auto"
 WHISPER_MODEL = os.getenv("WHISPER_MODEL", "whisper-1")
+# Upload size bounds for POST /transcribe (bytes).
+WHISPER_MIN_BYTES = max(1, int(os.getenv("WHISPER_MIN_BYTES", "256")))
+WHISPER_MAX_BYTES = max(
+    WHISPER_MIN_BYTES,
+    int(os.getenv("WHISPER_MAX_BYTES", "3145728")),  # 3 MiB default
+)
 # TTS: openai | elevenlabs (STT / Whisper stays on OpenAI)
 _raw_tts_provider = os.getenv("TTS_PROVIDER", "openai").strip().lower()
 TTS_PROVIDER = _raw_tts_provider if _raw_tts_provider in ("openai", "elevenlabs") else "openai"

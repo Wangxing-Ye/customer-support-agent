@@ -16,6 +16,9 @@ JWT_REFRESH_SKEW_SECONDS=300
 # Max POST /auth/token per client IP per rolling hour.
 SESSION_PER_IP_PER_HOUR=60
 SESSION_REFRESH_PER_SID_PER_MINUTE=10
+# Max user chat turns (POST /chat and /chat/stream) per sid lifetime.
+# Refresh keeps the same sid and does not reset this counter. 0 disables.
+SESSION_CHAT_TURNS_PER_SID=100
 # true only behind a trusted reverse proxy that sets X-Forwarded-For
 TRUST_PROXY_HEADERS=false
 CORS_ORIGINS=http://127.0.0.1:3000,http://localhost:3000,http://127.0.0.1:3003,http://localhost:3003,http://127.0.0.1:4173,http://localhost:4173
@@ -73,6 +76,9 @@ USER_INPUT_MAX_MESSAGE_WORDS=150
 # Frontend reads the same limit from POST /auth/token (user_input_max_message_words).
 
 WHISPER_MODEL=whisper-1
+# Upload size bounds for POST /transcribe (3 MiB ≈ short mic clips)
+WHISPER_MIN_BYTES=256
+WHISPER_MAX_BYTES=3145728
 # TTS: openai | elevenlabs (STT stays on OpenAI Whisper)
 TTS_PROVIDER=openai
 # Max Unicode characters per /tts request (~2000 ≈ 300+ English words)

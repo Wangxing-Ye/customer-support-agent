@@ -24,6 +24,8 @@ from backend.config import (
     JWT_REFRESH_SKEW_SECONDS,
     TTS_MAX_CHARS,
     USER_INPUT_MAX_MESSAGE_WORDS,
+    WHISPER_MAX_BYTES,
+    WHISPER_MIN_BYTES,
     WHISPER_MODEL,
 )
 from backend.db import Base, engine, ensure_schema, session_scope
@@ -31,6 +33,7 @@ from backend.models import Appointment, AvailabilityRule, EmailLog, Service, Tic
 from backend.rate_limit import (
     enforce_auth_refresh_limits,
     enforce_auth_token_limits,
+    enforce_chat_turns_per_sid,
 )
 from backend.services.scheduling import finalize_paid_hold, seed_defaults
 from backend.services.stripe_checkout import live_checkout_url, parse_webhook_event
@@ -315,9 +318,23 @@ async def transcribe_audio(
     if not api_key:
         raise HTTPException(status_code=500, detail="OPENAI_API_KEY is not set.")
 
-    raw = await file.read()
-    if not raw or len(raw) < 256:
-        raise HTTPException(status_code=400, detail="Audio file is empty or too short.")
+    # Read at most max+1 bytes so oversized uploads are rejected without buffering more.
+    raw = await file.read(WHISPER_MAX_BYTES + 1)
+    if len(raw) > WHISPER_MAX_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=(
+                f"Audio file is too large (max {WHISPER_MAX_BYTES} bytes). "
+                "Please record a shorter message."
+            ),
+        )
+    if not raw or len(raw) < WHISPER_MIN_BYTES:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Audio file is empty or too short (min {WHISPER_MIN_BYTES} bytes)."
+            ),
+        )
 
     filename = file.filename or "recording.webm"
     suffix = os.path.splitext(filename)[1].lower()
@@ -353,6 +370,7 @@ async def transcribe_audio(
 
 @app.post("/chat")
 async def chat(req: ChatRequest, claims: dict = Depends(verify_jwt)):
+    enforce_chat_turns_per_sid(str(claims["sid"]))
     config, tid = _thread_config_from_claims(claims)
     result = _graph().invoke(
         {"messages": [HumanMessage(content=req.message)]},
@@ -364,6 +382,7 @@ async def chat(req: ChatRequest, claims: dict = Depends(verify_jwt)):
 @app.post("/chat/stream")
 async def chat_stream(req: ChatRequest, claims: dict = Depends(verify_jwt)):
     """SSE stream of assistant tokens (+ optional status events)."""
+    enforce_chat_turns_per_sid(str(claims["sid"]))
     config, tid = _thread_config_from_claims(claims)
     graph = _graph()
 

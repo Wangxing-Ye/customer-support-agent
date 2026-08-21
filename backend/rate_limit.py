@@ -8,14 +8,17 @@ from collections import defaultdict, deque
 from fastapi import HTTPException, Request
 
 from backend.config import (
+    SESSION_CHAT_TURNS_PER_SID,
     SESSION_REFRESH_PER_SID_PER_MINUTE,
     SESSION_PER_IP_PER_HOUR,
     TRUST_PROXY_HEADERS,
 )
 
 _lock = threading.Lock()
-# key → deque of monotonic timestamps
+# key → deque of monotonic timestamps (sliding windows)
 _hits: dict[str, deque[float]] = defaultdict(deque)
+# key → lifetime hit count (no window; cleared only on process restart)
+_lifetime_counts: dict[str, int] = defaultdict(int)
 
 
 def client_ip(request: Request) -> str:
@@ -105,4 +108,33 @@ def enforce_auth_refresh_limits(*, sid: str, request: Request) -> None:
         limit=max(SESSION_REFRESH_PER_SID_PER_MINUTE * 3, 60),
         window_seconds=60,
         detail="Too many refresh requests from this network. Try again in a minute.",
+    )
+
+
+def check_lifetime_quota(*, key: str, limit: int) -> bool:
+    """Return True and increment if under limit. Lifetime (no sliding window)."""
+    if limit <= 0:
+        return True
+    with _lock:
+        if _lifetime_counts[key] >= limit:
+            return False
+        _lifetime_counts[key] += 1
+        return True
+
+
+def enforce_chat_turns_per_sid(sid: str) -> None:
+    """Cap user chat turns (POST /chat and /chat/stream) for one anonymous sid."""
+    sid_n = (sid or "").strip() or "unknown"
+    allowed = check_lifetime_quota(
+        key=f"chat:turns:sid:{sid_n}",
+        limit=SESSION_CHAT_TURNS_PER_SID,
+    )
+    if allowed:
+        return
+    raise HTTPException(
+        status_code=429,
+        detail=(
+            "This chat session has reached its message limit. "
+            "Open a new browser tab or clear site data for this page to start a new session."
+        ),
     )

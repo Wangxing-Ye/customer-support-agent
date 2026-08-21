@@ -261,9 +261,47 @@ Optional RAGFlow: upload that sample Markdown (or your own KB), then set `RAGFLO
 | `GET /pay/cancel`       | Checkout cancelled landing page                                    |
 
 
-Chat body: `{ "message": "..." }` (`thread_id` is ignored if sent). The site JWT is an **anonymous session** (`sid`); LangGraph checkpoint thread is derived as `chat:{sid}` on the server. Appointment cancel still requires **email + cancel code**, not the site JWT.
+Chat body: `{ "message": "..." }` (`thread_id` is ignored if sent). Appointment cancel still requires **email + cancel code**, not the site JWT.
 
-Phase-1 rate limits (in-process, per API worker): `POST /auth/token` defaults to **60/hour** per client IP (`SESSION_PER_IP_PER_HOUR`); `POST /auth/refresh` defaults to **10/min** per `sid` (plus a soft per-IP cap). Exceeded requests return **429** with `Retry-After`. Set `TRUST_PROXY_HEADERS=true` only behind a trusted reverse proxy. Multi-instance deployments should move these counters to Redis later.
+### Anonymous session and access control
+
+| Item | Behavior |
+| ---- | -------- |
+| Identity | Anonymous JWT (`sub=anonymous-chat`). Not a login account; unrelated to appointment cancel codes. |
+| Issue | `POST /auth/token` → new `sid` + Bearer token |
+| Refresh | `POST /auth/refresh` (valid Bearer required) → **same `sid`**, new `exp` only |
+| TTL | `SESSION_JWT_EXPIRE_MINUTES` (default 30). Frontend silently refreshes within `JWT_REFRESH_SKEW_SECONDS`. |
+| Thread binding | LangGraph `thread_id = chat:{sid}` is **server-derived**; any client `thread_id` is ignored |
+| JWT required | `/chat`, `/chat/stream`, `/transcribe`, `/tts`, `/auth/refresh` |
+| No JWT | Stripe webhook, `/pay/*` landing and status endpoints |
+| Secrets / storage | `JWT_SECRET` + `JWT_AUDIENCE`; widget stores the token in `sessionStorage` |
+
+### Session rate limits
+
+In-process sliding windows (phase 1, **per API worker**). Over-limit → **429** with `Retry-After`. Multi-instance deployments should move counters to Redis later.
+
+| Variable | Default | Effect |
+| -------- | ------- | ------ |
+| `SESSION_PER_IP_PER_HOUR` | 60 | Max `POST /auth/token` (new sid) per client IP per rolling hour |
+| `SESSION_REFRESH_PER_SID_PER_MINUTE` | 10 | Max refresh per `sid` per minute; soft per-IP cap ≈ 3× that rate |
+| `TRUST_PROXY_HEADERS` | `false` | Trust `X-Forwarded-For` only behind a known reverse proxy |
+
+Refresh does **not** mint a new session and does **not** reset the chat-turn quota below.
+
+### Model / cost limits
+
+There is no direct OpenAI/Anthropic RPM integration. Volume is capped by **chat turns per sid** plus **input size** limits.
+
+| Variable | Default | Effect |
+| -------- | ------- | ------ |
+| `SESSION_CHAT_TURNS_PER_SID` | 100 | Lifetime max user turns on `POST /chat` and `POST /chat/stream` per `sid` (not internal LLM `invoke`s). Refresh does not reset. `0` disables. |
+| `USER_INPUT_MAX_MESSAGE_WORDS` | 150 | Max words per chat message |
+| `TTS_MAX_CHARS` | 2000 | Max characters per `/tts` request |
+| `WHISPER_MIN_BYTES` / `WHISPER_MAX_BYTES` | 256 / 3 MiB | Audio size bounds for `/transcribe` (oversize → 413) |
+
+Rough upper bound with defaults: about **60 new sid/IP/hour × 100 turns ≈ 6000 chat requests/IP/hour** (same process / same in-memory counters).
+
+Not in this release: daily per-IP quotas, CAPTCHA, Origin checks, Redis-shared counters, vendor LLM quota APIs.
 
 ## Tools (LangGraph)
 
@@ -278,7 +316,7 @@ Phase-1 rate limits (in-process, per API worker): `POST /auth/token` defaults to
 
 ## Environment
 
-See [env_copy](env_copy). Important keys: `OPENAI_API_KEY`, `OPENAI_MODEL`, `LLM_PROVIDER` (`openai` / `anthropic` / `auto`), `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `JWT_SECRET`, `SESSION_JWT_EXPIRE_MINUTES` (default 30), `JWT_AUDIENCE`, `JWT_REFRESH_SKEW_SECONDS` (frontend renew window, default 300), `SESSION_PER_IP_PER_HOUR` (default 60), `SESSION_REFRESH_PER_SID_PER_MINUTE`, `TRUST_PROXY_HEADERS`, `DATABASE_URL`, `KB_PROVIDER`, RAGFlow vars, `EMAIL_PROVIDER`, `EMAIL_FROM`, `FIRM_NAME`, `AGENT_NAME`, `FIRM_TIMEZONE`, `FIRM_WEBSITE`, `MEETING_LINK`, `FIRM_LOCATION`, `PUBLIC_BASE_URL`, `PAYMENT_HOLD_MINUTES`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRODUCT_CONSULT_30`, `STRIPE_PRODUCT_CONSULT_60` (optional legacy `STRIPE_PRODUCT_STRATEGY_SESSION` fallback). Whisper STT stays on OpenAI. TTS uses `TTS_PROVIDER` (`openai` / `elevenlabs`) with `OPENAI_TTS_*` or `ELEVENLABS_*`, and `TTS_MAX_CHARS` (default 2000) caps each `/tts` request.
+See [env_copy](env_copy). Important keys: `OPENAI_API_KEY`, `OPENAI_MODEL`, `LLM_PROVIDER` (`openai` / `anthropic` / `auto`), `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `JWT_SECRET`, `SESSION_JWT_EXPIRE_MINUTES` (default 30), `JWT_AUDIENCE`, `JWT_REFRESH_SKEW_SECONDS` (frontend renew window, default 300), `SESSION_PER_IP_PER_HOUR` (default 60), `SESSION_REFRESH_PER_SID_PER_MINUTE`, `SESSION_CHAT_TURNS_PER_SID` (default 100), `TRUST_PROXY_HEADERS`, `DATABASE_URL`, `KB_PROVIDER`, RAGFlow vars, `EMAIL_PROVIDER`, `EMAIL_FROM`, `FIRM_NAME`, `AGENT_NAME`, `FIRM_TIMEZONE`, `FIRM_WEBSITE`, `MEETING_LINK`, `FIRM_LOCATION`, `PUBLIC_BASE_URL`, `PAYMENT_HOLD_MINUTES`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRODUCT_CONSULT_30`, `STRIPE_PRODUCT_CONSULT_60` (optional legacy `STRIPE_PRODUCT_STRATEGY_SESSION` fallback). Whisper STT stays on OpenAI (`WHISPER_MIN_BYTES` / `WHISPER_MAX_BYTES`, default 256 / 3 MiB). TTS uses `TTS_PROVIDER` (`openai` / `elevenlabs`) with `OPENAI_TTS_*` or `ELEVENLABS_*`, and `TTS_MAX_CHARS` (default 2000) caps each `/tts` request.
 Local Stripe webhook forwarding:
 
 ```bash
