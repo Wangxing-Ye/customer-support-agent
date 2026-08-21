@@ -324,8 +324,6 @@ Do not commit `.env` (it is gitignored).
 1. Reschedule, SMS alerts, visit reminders, and an owner dashboard for appointments and tickets.
 2. **Multi-tenant SaaS design**
 
-
-
 ## License
 
 MIT — see [LICENSE](LICENSE).
