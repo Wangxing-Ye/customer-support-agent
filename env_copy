@@ -8,14 +8,14 @@ ANTHROPIC_API_KEY=
 ANTHROPIC_MODEL=claude-sonnet-5
 JWT_SECRET=change-me-to-a-long-random-string
 # Anonymous widget session JWT (minutes). Frontend refreshes before expiry.
-JWT_EXPIRE_MINUTES=30
+SESSION_JWT_EXPIRE_MINUTES=30
 JWT_AUDIENCE=customer-support-widget
 # Renew when fewer than this many seconds remain (frontend).
 JWT_REFRESH_SKEW_SECONDS=300
 # Phase-1 in-process rate limits (per API process; use Redis later for multi-worker).
-AUTH_TOKEN_PER_MINUTE=10
-AUTH_TOKEN_PER_HOUR=60
-AUTH_REFRESH_PER_MINUTE=20
+# Max POST /auth/token per client IP per rolling hour.
+SESSION_PER_IP_PER_HOUR=60
+SESSION_REFRESH_PER_SID_PER_MINUTE=10
 # true only behind a trusted reverse proxy that sets X-Forwarded-For
 TRUST_PROXY_HEADERS=false
 CORS_ORIGINS=http://127.0.0.1:3000,http://localhost:3000,http://127.0.0.1:3003,http://localhost:3003,http://127.0.0.1:4173,http://localhost:4173
@@ -69,12 +69,14 @@ CANCEL_WINDOW_HOURS=24
 CANCEL_CODE_MAX_ATTEMPTS=5
 BUSINESS_HOURS_START=9
 BUSINESS_HOURS_END=17
-MAX_MESSAGE_WORDS=150
-# Frontend reads the same limit from POST /auth/token (max_message_words).
+USER_INPUT_MAX_MESSAGE_WORDS=150
+# Frontend reads the same limit from POST /auth/token (user_input_max_message_words).
 
 WHISPER_MODEL=whisper-1
 # TTS: openai | elevenlabs (STT stays on OpenAI Whisper)
 TTS_PROVIDER=openai
+# Max Unicode characters per /tts request (~2000 ≈ 300+ English words)
+TTS_MAX_CHARS=2000
 OPENAI_TTS_MODEL=gpt-4o-mini-tts
 OPENAI_TTS_VOICE_ID=alloy
 # Legacy aliases (used if OPENAI_TTS_* unset):

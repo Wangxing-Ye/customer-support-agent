@@ -3,8 +3,8 @@ import {
   TOKEN_URL,
   REFRESH_URL,
   TOKEN_EXPIRES_AT_KEY,
-  MAX_WORDS_KEY,
-  DEFAULT_MAX_WORDS,
+  USER_INPUT_MAX_WORDS_KEY,
+  DEFAULT_USER_INPUT_MAX_MESSAGE_WORDS,
 } from "./config.js";
 
 const DEFAULT_REFRESH_SKEW_SECONDS = 300;
@@ -24,10 +24,14 @@ function storeTokenResponse(j) {
     sessionStorage.setItem("pst_refresh_skew", String(j.refresh_skew_seconds));
   }
 
-  const maxWords = parseInt(j.max_message_words, 10);
+  const maxWords = parseInt(j.user_input_max_message_words, 10);
   sessionStorage.setItem(
-    MAX_WORDS_KEY,
-    String(Number.isFinite(maxWords) && maxWords > 0 ? maxWords : DEFAULT_MAX_WORDS),
+    USER_INPUT_MAX_WORDS_KEY,
+    String(
+      Number.isFinite(maxWords) && maxWords > 0
+        ? maxWords
+        : DEFAULT_USER_INPUT_MAX_MESSAGE_WORDS,
+    ),
   );
   return t;
 }
@@ -93,6 +97,6 @@ export function clearToken() {
   sessionStorage.removeItem(TOKEN_KEY);
   sessionStorage.removeItem(TOKEN_EXPIRES_AT_KEY);
   sessionStorage.removeItem("pst_refresh_skew");
-  sessionStorage.removeItem(MAX_WORDS_KEY);
+  sessionStorage.removeItem(USER_INPUT_MAX_WORDS_KEY);
   sessionStorage.removeItem("pst_chat_thread");
 }

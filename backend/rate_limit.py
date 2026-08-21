@@ -8,9 +8,8 @@ from collections import defaultdict, deque
 from fastapi import HTTPException, Request
 
 from backend.config import (
-    AUTH_REFRESH_PER_MINUTE,
-    AUTH_TOKEN_PER_HOUR,
-    AUTH_TOKEN_PER_MINUTE,
+    SESSION_REFRESH_PER_SID_PER_MINUTE,
+    SESSION_PER_IP_PER_HOUR,
     TRUST_PROXY_HEADERS,
 )
 
@@ -79,17 +78,11 @@ def enforce_rate_limit(
 
 
 def enforce_auth_token_limits(request: Request) -> str:
-    """Apply per-IP minute + hour caps for POST /auth/token. Returns client IP."""
+    """Apply per-IP hourly cap for POST /auth/token. Returns client IP."""
     ip = client_ip(request)
     enforce_rate_limit(
-        key=f"auth:token:m:{ip}",
-        limit=AUTH_TOKEN_PER_MINUTE,
-        window_seconds=60,
-        detail="Too many token requests. Try again in a minute.",
-    )
-    enforce_rate_limit(
         key=f"auth:token:h:{ip}",
-        limit=AUTH_TOKEN_PER_HOUR,
+        limit=SESSION_PER_IP_PER_HOUR,
         window_seconds=3600,
         detail="Too many token requests this hour. Try again later.",
     )
@@ -102,14 +95,14 @@ def enforce_auth_refresh_limits(*, sid: str, request: Request) -> None:
     ip = client_ip(request)
     enforce_rate_limit(
         key=f"auth:refresh:sid:{sid_n}",
-        limit=AUTH_REFRESH_PER_MINUTE,
+        limit=SESSION_REFRESH_PER_SID_PER_MINUTE,
         window_seconds=60,
         detail="Too many refresh requests. Try again in a minute.",
     )
     # Soft IP cap so rotating sids cannot amplify forever from one host.
     enforce_rate_limit(
         key=f"auth:refresh:ip:{ip}",
-        limit=max(AUTH_REFRESH_PER_MINUTE * 3, 60),
+        limit=max(SESSION_REFRESH_PER_SID_PER_MINUTE * 3, 60),
         window_seconds=60,
         detail="Too many refresh requests from this network. Try again in a minute.",
     )

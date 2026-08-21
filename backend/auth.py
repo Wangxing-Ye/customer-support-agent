@@ -9,7 +9,7 @@ import jwt
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from backend.config import JWT_ALGORITHM, JWT_AUDIENCE, JWT_EXPIRE_MINUTES, JWT_SECRET
+from backend.config import JWT_ALGORITHM, JWT_AUDIENCE, SESSION_JWT_EXPIRE_MINUTES, JWT_SECRET
 
 security = HTTPBearer()
 
@@ -40,7 +40,7 @@ def create_access_token(sid: str | None = None) -> dict[str, Any]:
     _require_secret()
     sid_n = (sid or "").strip() or new_session_id()
     now = int(time.time())
-    expires_in = max(1, int(JWT_EXPIRE_MINUTES)) * 60
+    expires_in = max(1, int(SESSION_JWT_EXPIRE_MINUTES)) * 60
     exp = now + expires_in
     payload = {
         "sub": "anonymous-chat",

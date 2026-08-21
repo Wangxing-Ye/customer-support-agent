@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { getMaxWords, BRAND, brandActionText, API_BASE } from "../config.js";
+import { getUserInputMaxMessageWords, BRAND, brandActionText, API_BASE } from "../config.js";
 import { wordCount } from "../utils.js";
 import { streamChat, fetchChat, playAssistantAudio, stopAssistantAudio, setAssistantSpeakingListener, fetchPayStatus } from "../api.js";
 import { renderBotMarkdown } from "../markdown.js";
@@ -394,8 +394,8 @@ function ChatApp() {
     async (raw) => {
       const msg = String(raw || "").trim();
       if (!msg || busy) return;
-      if (wordCount(msg) > getMaxWords()) {
-        alert(`Please use at most ${getMaxWords()} words.`);
+      if (wordCount(msg) > getUserInputMaxMessageWords()) {
+        alert(`Please use at most ${getUserInputMaxMessageWords()} words.`);
         return;
       }
       setInput("");

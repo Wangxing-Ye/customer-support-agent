@@ -20,9 +20,10 @@ from backend.auth import create_access_token, thread_id_for_sid, verify_jwt
 from backend.config import (
     CORS_ORIGINS,
     FIRM_NAME,
-    JWT_EXPIRE_MINUTES,
+    SESSION_JWT_EXPIRE_MINUTES,
     JWT_REFRESH_SKEW_SECONDS,
-    MAX_MESSAGE_WORDS,
+    TTS_MAX_CHARS,
+    USER_INPUT_MAX_MESSAGE_WORDS,
     WHISPER_MODEL,
 )
 from backend.db import Base, engine, ensure_schema, session_scope
@@ -68,8 +69,8 @@ def _token_response(issued: dict) -> dict:
         "expires_in": issued["expires_in"],
         "expires_at": issued["expires_at"],
         "refresh_skew_seconds": JWT_REFRESH_SKEW_SECONDS,
-        "max_message_words": MAX_MESSAGE_WORDS,
-        "jwt_expire_minutes": JWT_EXPIRE_MINUTES,
+        "user_input_max_message_words": USER_INPUT_MAX_MESSAGE_WORDS,
+        "session_jwt_expire_minutes": SESSION_JWT_EXPIRE_MINUTES,
     }
 
 def _content_to_text(content) -> str:
@@ -140,8 +141,10 @@ class ChatRequest(BaseModel):
         if not text:
             raise ValueError("Message cannot be empty")
         words = [w for w in text.split() if w]
-        if len(words) > MAX_MESSAGE_WORDS:
-            raise ValueError(f"Message must be at most {MAX_MESSAGE_WORDS} words")
+        if len(words) > USER_INPUT_MAX_MESSAGE_WORDS:
+            raise ValueError(
+                f"Message must be at most {USER_INPUT_MAX_MESSAGE_WORDS} words"
+            )
         return text
 
 
@@ -154,8 +157,10 @@ class TtsRequest(BaseModel):
         text = v.strip()
         if not text:
             raise ValueError("Message cannot be empty")
-        if len(text) > 4000:
-            raise ValueError("Message is too long for speech synthesis")
+        if len(text) > TTS_MAX_CHARS:
+            raise ValueError(
+                f"Message is too long for speech synthesis (max {TTS_MAX_CHARS} characters)"
+            )
         return text
 
 

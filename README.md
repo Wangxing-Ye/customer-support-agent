@@ -263,7 +263,7 @@ Optional RAGFlow: upload that sample Markdown (or your own KB), then set `RAGFLO
 
 Chat body: `{ "message": "..." }` (`thread_id` is ignored if sent). The site JWT is an **anonymous session** (`sid`); LangGraph checkpoint thread is derived as `chat:{sid}` on the server. Appointment cancel still requires **email + cancel code**, not the site JWT.
 
-Phase-1 rate limits (in-process, per API worker): `POST /auth/token` defaults to **10/min** and **60/hour** per client IP; `POST /auth/refresh` defaults to **20/min** per `sid` (plus a soft per-IP cap). Exceeded requests return **429** with `Retry-After`. Set `TRUST_PROXY_HEADERS=true` only behind a trusted reverse proxy. Multi-instance deployments should move these counters to Redis later.
+Phase-1 rate limits (in-process, per API worker): `POST /auth/token` defaults to **60/hour** per client IP (`SESSION_PER_IP_PER_HOUR`); `POST /auth/refresh` defaults to **10/min** per `sid` (plus a soft per-IP cap). Exceeded requests return **429** with `Retry-After`. Set `TRUST_PROXY_HEADERS=true` only behind a trusted reverse proxy. Multi-instance deployments should move these counters to Redis later.
 
 ## Tools (LangGraph)
 
@@ -278,8 +278,7 @@ Phase-1 rate limits (in-process, per API worker): `POST /auth/token` defaults to
 
 ## Environment
 
-See [env_copy](env_copy). Important keys: `OPENAI_API_KEY`, `OPENAI_MODEL`, `LLM_PROVIDER` (`openai` / `anthropic` / `auto`), `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `JWT_SECRET`, `JWT_EXPIRE_MINUTES` (default 30), `JWT_AUDIENCE`, `JWT_REFRESH_SKEW_SECONDS` (frontend renew window, default 300), `AUTH_TOKEN_PER_MINUTE`, `AUTH_TOKEN_PER_HOUR`, `AUTH_REFRESH_PER_MINUTE`, `TRUST_PROXY_HEADERS`, `DATABASE_URL`, `KB_PROVIDER`, RAGFlow vars, `EMAIL_PROVIDER`, `EMAIL_FROM`, `FIRM_NAME`, `AGENT_NAME`, `FIRM_TIMEZONE`, `FIRM_WEBSITE`, `MEETING_LINK`, `FIRM_LOCATION`, `PUBLIC_BASE_URL`, `PAYMENT_HOLD_MINUTES`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRODUCT_CONSULT_30`, `STRIPE_PRODUCT_CONSULT_60` (optional legacy `STRIPE_PRODUCT_STRATEGY_SESSION` fallback). Whisper STT stays on OpenAI. TTS uses `TTS_PROVIDER` (`openai` / `elevenlabs`) with `OPENAI_TTS_*` or `ELEVENLABS_*`.
-
+See [env_copy](env_copy). Important keys: `OPENAI_API_KEY`, `OPENAI_MODEL`, `LLM_PROVIDER` (`openai` / `anthropic` / `auto`), `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `JWT_SECRET`, `SESSION_JWT_EXPIRE_MINUTES` (default 30), `JWT_AUDIENCE`, `JWT_REFRESH_SKEW_SECONDS` (frontend renew window, default 300), `SESSION_PER_IP_PER_HOUR` (default 60), `SESSION_REFRESH_PER_SID_PER_MINUTE`, `TRUST_PROXY_HEADERS`, `DATABASE_URL`, `KB_PROVIDER`, RAGFlow vars, `EMAIL_PROVIDER`, `EMAIL_FROM`, `FIRM_NAME`, `AGENT_NAME`, `FIRM_TIMEZONE`, `FIRM_WEBSITE`, `MEETING_LINK`, `FIRM_LOCATION`, `PUBLIC_BASE_URL`, `PAYMENT_HOLD_MINUTES`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRODUCT_CONSULT_30`, `STRIPE_PRODUCT_CONSULT_60` (optional legacy `STRIPE_PRODUCT_STRATEGY_SESSION` fallback). Whisper STT stays on OpenAI. TTS uses `TTS_PROVIDER` (`openai` / `elevenlabs`) with `OPENAI_TTS_*` or `ELEVENLABS_*`, and `TTS_MAX_CHARS` (default 2000) caps each `/tts` request.
 Local Stripe webhook forwarding:
 
 ```bash

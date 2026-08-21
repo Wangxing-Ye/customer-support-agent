@@ -21,21 +21,18 @@ export const TOKEN_KEY = "pst_chat_jwt";
 export const TOKEN_EXPIRES_AT_KEY = "pst_chat_jwt_exp";
 /** @deprecated Thread is derived server-side from JWT sid; kept only for cleanup. */
 export const THREAD_KEY = "pst_chat_thread";
-export const MAX_WORDS_KEY = "pst_max_words";
-/** Fallback until /auth/token returns max_message_words from the API. */
-export const DEFAULT_MAX_WORDS = 150;
+export const USER_INPUT_MAX_WORDS_KEY = "pst_user_input_max_words";
+/** Fallback until /auth/token returns user_input_max_message_words from the API. */
+export const DEFAULT_USER_INPUT_MAX_MESSAGE_WORDS = 150;
 
-export function getMaxWords() {
+export function getUserInputMaxMessageWords() {
   const raw =
     typeof sessionStorage !== "undefined"
-      ? sessionStorage.getItem(MAX_WORDS_KEY)
+      ? sessionStorage.getItem(USER_INPUT_MAX_WORDS_KEY)
       : null;
   const n = parseInt(raw || "", 10);
-  return Number.isFinite(n) && n > 0 ? n : DEFAULT_MAX_WORDS;
+  return Number.isFinite(n) && n > 0 ? n : DEFAULT_USER_INPUT_MAX_MESSAGE_WORDS;
 }
-
-/** @deprecated Use getMaxWords() so the limit matches backend MAX_MESSAGE_WORDS. */
-export const MAX_WORDS = DEFAULT_MAX_WORDS;
 
 /**
  * Widget chrome for this tenant. Swap firmName, title, subtitle, greeting,

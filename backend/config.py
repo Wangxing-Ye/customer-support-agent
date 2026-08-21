@@ -7,22 +7,22 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-MAX_MESSAGE_WORDS = int(os.getenv("MAX_MESSAGE_WORDS", "150"))
+USER_INPUT_MAX_MESSAGE_WORDS = int(os.getenv("USER_INPUT_MAX_MESSAGE_WORDS", "150"))
 
 JWT_SECRET = os.getenv("JWT_SECRET")
 JWT_ALGORITHM = "HS256"
 # Anonymous widget session JWT TTL (default 30 minutes). Frontend silently refreshes.
-JWT_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "30"))
+SESSION_JWT_EXPIRE_MINUTES = int(os.getenv("SESSION_JWT_EXPIRE_MINUTES", "30"))
 JWT_AUDIENCE = (os.getenv("JWT_AUDIENCE") or "customer-support-widget").strip() or (
     "customer-support-widget"
 )
 # Refresh when fewer than this many seconds remain on the token (frontend hint).
 JWT_REFRESH_SKEW_SECONDS = int(os.getenv("JWT_REFRESH_SKEW_SECONDS", "300"))
 
-# Phase-1 in-process rate limits for anonymous session minting (per process).
-AUTH_TOKEN_PER_MINUTE = int(os.getenv("AUTH_TOKEN_PER_MINUTE", "10"))
-AUTH_TOKEN_PER_HOUR = int(os.getenv("AUTH_TOKEN_PER_HOUR", "60"))
-AUTH_REFRESH_PER_MINUTE = int(os.getenv("AUTH_REFRESH_PER_MINUTE", "20"))
+# Phase-1 in-process rate limit: anonymous session minting (POST /auth/token).
+# Max new sessions per client IP per rolling hour (per API process).
+SESSION_PER_IP_PER_HOUR = int(os.getenv("SESSION_PER_IP_PER_HOUR", "60"))
+SESSION_REFRESH_PER_SID_PER_MINUTE = int(os.getenv("SESSION_REFRESH_PER_SID_PER_MINUTE", "10"))
 # Only trust X-Forwarded-For when the app sits behind a known reverse proxy.
 TRUST_PROXY_HEADERS = os.getenv("TRUST_PROXY_HEADERS", "false").lower() in (
     "1",
@@ -121,6 +121,8 @@ WHISPER_MODEL = os.getenv("WHISPER_MODEL", "whisper-1")
 # TTS: openai | elevenlabs (STT / Whisper stays on OpenAI)
 _raw_tts_provider = os.getenv("TTS_PROVIDER", "openai").strip().lower()
 TTS_PROVIDER = _raw_tts_provider if _raw_tts_provider in ("openai", "elevenlabs") else "openai"
+# Max Unicode characters per /tts request (assistant speech).
+TTS_MAX_CHARS = max(1, int(os.getenv("TTS_MAX_CHARS", "2000")))
 # Legacy aliases still accepted; prefer OPENAI_TTS_* / ELEVENLABS_*
 TTS_MODEL = os.getenv("TTS_MODEL", "tts-1")
 TTS_VOICE = os.getenv("TTS_VOICE", "alloy")
