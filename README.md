@@ -61,8 +61,6 @@ Appointment businesses share three layers. This demo keeps **one** `Service` / `
 | Location / staff / court as a bookable resource        | **Not covered**                                                                     |
 
 
-
-
 ### Booking
 
 
@@ -75,8 +73,6 @@ Appointment businesses share three layers. This demo keeps **one** `Service` / `
 | `pending_payment` / expire unpaid holds                                                 | **Covered** (15-minute hold; overdue → `expired`, slot free) |
 | Configurable hours (evenings, 90-minute services)                                       | **Not covered** (fixed 9–11 AM and 1–5 PM PT)                |
 | `party_size`                                                                            | **Not covered**                                              |
-
-
 
 
 ### Pay-when
@@ -327,6 +323,8 @@ Do not commit `.env` (it is gitignored).
 
 1. Reschedule, SMS alerts, visit reminders, and an owner dashboard for appointments and tickets.
 2. **Multi-tenant SaaS design**
+
+
 
 ## License
 
