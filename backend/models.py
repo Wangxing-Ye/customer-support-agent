@@ -69,6 +69,8 @@ class Appointment(Base):
     cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     payment_due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     stripe_checkout_session_id: Mapped[str] = mapped_column(String(128), default="")
+    # Snapshot of Zoom link or in-person address at booking time.
+    location_for_service: Mapped[str] = mapped_column(String(512), default="")
 
     service: Mapped[Service] = relationship("Service")
 
@@ -105,4 +107,31 @@ class EmailLog(Base):
     detail: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class Owner(Base):
+    """Single-tenant dashboard operator (bootstrap admin)."""
+
+    __tablename__ = "owners"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    username: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    password_hash: Mapped[str] = mapped_column(String(128), nullable=False)
+    email: Mapped[str | None] = mapped_column(String(256), nullable=True, index=True)
+    email_verified: Mapped[bool] = mapped_column(Boolean, default=False)
+    setup_completed: Mapped[bool] = mapped_column(Boolean, default=False)
+    email_verify_code_hash: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    email_verify_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    password_reset_token_hash: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    password_reset_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )

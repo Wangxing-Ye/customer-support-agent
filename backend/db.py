@@ -53,6 +53,7 @@ def ensure_schema() -> None:
         "ALTER TABLE appointments ADD COLUMN payment_due_at TIMESTAMPTZ",
         "ALTER TABLE appointments ADD COLUMN payment_due_at DATETIME",
         "ALTER TABLE appointments ADD COLUMN stripe_checkout_session_id VARCHAR(128) DEFAULT ''",
+        "ALTER TABLE appointments ADD COLUMN location_for_service VARCHAR(512) DEFAULT ''",
     ]
     for sql in stmts:
         try:

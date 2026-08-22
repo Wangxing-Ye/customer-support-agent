@@ -9,6 +9,7 @@ langchain-core
 requests
 python-dotenv
 PyJWT
+bcrypt>=4.0
 pydantic>=2
 openai>=1.0.0
 sqlalchemy>=2

@@ -92,6 +92,18 @@ def enforce_auth_token_limits(request: Request) -> str:
     return ip
 
 
+def enforce_admin_login_limits(request: Request) -> str:
+    """Per-IP cap for POST /admin/login and forgot-password."""
+    ip = client_ip(request)
+    enforce_rate_limit(
+        key=f"admin:login:h:{ip}",
+        limit=30,
+        window_seconds=3600,
+        detail="Too many admin login attempts this hour. Try again later.",
+    )
+    return ip
+
+
 def enforce_auth_refresh_limits(*, sid: str, request: Request) -> None:
     """Per-sid (and light per-IP) caps for POST /auth/refresh."""
     sid_n = (sid or "").strip() or "unknown"

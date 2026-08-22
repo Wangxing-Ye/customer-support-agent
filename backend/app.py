@@ -29,12 +29,14 @@ from backend.config import (
     WHISPER_MODEL,
 )
 from backend.db import Base, engine, ensure_schema, session_scope
-from backend.models import Appointment, AvailabilityRule, EmailLog, Service, Ticket  # noqa: F401
+from backend.models import Appointment, AvailabilityRule, EmailLog, Owner, Service, Ticket  # noqa: F401
+from backend.admin_api import router as admin_router
 from backend.rate_limit import (
     enforce_auth_refresh_limits,
     enforce_auth_token_limits,
     enforce_chat_turns_per_sid,
 )
+from backend.services.owners import seed_owner
 from backend.services.scheduling import finalize_paid_hold, seed_defaults
 from backend.services.stripe_checkout import live_checkout_url, parse_webhook_event
 from backend.services.tts import resolve_tts_provider, synthesize_speech_bytes
@@ -42,6 +44,7 @@ from backend.services.tts import resolve_tts_provider, synthesize_speech_bytes
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title=f"{FIRM_NAME} Client Services Agent")
+app.include_router(admin_router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -117,6 +120,7 @@ def on_startup() -> None:
         ensure_schema()
         with session_scope() as session:
             seed_defaults(session)
+            seed_owner(session)
     except Exception as exc:  # noqa: BLE001
         logger.error(
             "Database init failed (%s). Start Postgres with "

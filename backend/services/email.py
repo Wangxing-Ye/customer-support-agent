@@ -69,6 +69,24 @@ TEMPLATES = {
             "and may call during your preferred window if needed.\n"
         ),
     },
+    "owner_email_verify": {
+        "subject": "Verify owner email — {firm_name}",
+        "body": (
+            "Your owner dashboard verification code is: {code}\n\n"
+            "This code expires in {expires_minutes} minutes.\n"
+            "If you did not request this, ignore this email.\n"
+        ),
+    },
+    "owner_password_reset": {
+        "subject": "Reset owner password — {firm_name}",
+        "body": (
+            "Reset your owner dashboard password using this link:\n"
+            "{reset_url}\n\n"
+            "Or enter this token in the reset form: {token}\n\n"
+            "This link expires in {expires_minutes} minutes.\n"
+            "If you did not request a reset, ignore this email.\n"
+        ),
+    },
 }
 
 
@@ -88,44 +106,48 @@ def _render(template: str, ctx: dict[str, Any]) -> tuple[str, str]:
 
 def _deliver(to_email: str, subject: str, body: str) -> tuple[str, str]:
     provider = EMAIL_PROVIDER
-    if provider == "console":
-        logger.info("EMAIL console → %s | %s\n%s", to_email, subject, body)
-        print(f"\n===== EMAIL ({provider}) → {to_email} =====\n{subject}\n\n{body}\n=====\n")
-        return "sent", "console"
+    try:
+        if provider == "console":
+            logger.info("EMAIL console → %s | %s\n%s", to_email, subject, body)
+            print(f"\n===== EMAIL ({provider}) → {to_email} =====\n{subject}\n\n{body}\n=====\n")
+            return "sent", "console"
 
-    if provider == "resend":
-        if not RESEND_API_KEY:
-            return "error", "RESEND_API_KEY not set"
-        resp = requests.post(
-            "https://api.resend.com/emails",
-            headers={
-                "Authorization": f"Bearer {RESEND_API_KEY}",
-                "Content-Type": "application/json",
-            },
-            json={"from": EMAIL_FROM, "to": [to_email], "subject": subject, "text": body},
-            timeout=30,
-        )
-        if resp.status_code >= 300:
-            return "error", resp.text
-        return "sent", "resend"
+        if provider == "resend":
+            if not RESEND_API_KEY:
+                return "error", "RESEND_API_KEY not set"
+            resp = requests.post(
+                "https://api.resend.com/emails",
+                headers={
+                    "Authorization": f"Bearer {RESEND_API_KEY}",
+                    "Content-Type": "application/json",
+                },
+                json={"from": EMAIL_FROM, "to": [to_email], "subject": subject, "text": body},
+                timeout=30,
+            )
+            if resp.status_code >= 300:
+                return "error", resp.text
+            return "sent", "resend"
 
-    if provider == "smtp":
-        if not SMTP_HOST:
-            return "error", "SMTP_HOST not set"
-        msg = EmailMessage()
-        msg["From"] = EMAIL_FROM
-        msg["To"] = to_email
-        msg["Subject"] = subject
-        msg.set_content(body)
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=30) as smtp:
-            if SMTP_USE_TLS:
-                smtp.starttls()
-            if SMTP_USER:
-                smtp.login(SMTP_USER, SMTP_PASSWORD)
-            smtp.send_message(msg)
-        return "sent", "smtp"
+        if provider == "smtp":
+            if not SMTP_HOST:
+                return "error", "SMTP_HOST not set"
+            msg = EmailMessage()
+            msg["From"] = EMAIL_FROM
+            msg["To"] = to_email
+            msg["Subject"] = subject
+            msg.set_content(body)
+            with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=30) as smtp:
+                if SMTP_USE_TLS:
+                    smtp.starttls()
+                if SMTP_USER:
+                    smtp.login(SMTP_USER, SMTP_PASSWORD)
+                smtp.send_message(msg)
+            return "sent", "smtp"
 
-    return "error", f"Unknown EMAIL_PROVIDER={provider}"
+        return "error", f"Unknown EMAIL_PROVIDER={provider}"
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("email delivery failed")
+        return "error", str(exc)[:2000]
 
 
 def send_template_email(template: str, to_email: str, context: dict[str, Any]) -> dict[str, str]:

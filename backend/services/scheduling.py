@@ -481,6 +481,7 @@ def book_appointment(
             cancel_code_attempts=0,
             notes=notes or "",
             payment_due_at=due,
+            location_for_service=delivery_location(service),
         )
         session.add(appt)
         session.flush()
@@ -551,6 +552,7 @@ def book_appointment(
         cancel_code_attempts=0,
         notes=notes or "",
         payment_due_at=None,
+        location_for_service=delivery_location(service),
     )
     session.add(appt)
     session.flush()
@@ -976,6 +978,51 @@ def cancel_appointment(
         f"status=cancelled appointment_id={appt.appointment_id} "
         f"when={when_display} email={email_n} "
         "(A cancellation confirmation email was sent.)"
+    )
+
+
+def cancel_appointment_as_owner(session: Session, appointment_id: str) -> str:
+    """Staff cancel by appointment_id (no customer cancel code; no window block)."""
+    aid = (appointment_id or "").strip()
+    if not aid:
+        return "[error] appointment_id is required."
+
+    appt = session.scalars(
+        select(Appointment).where(Appointment.appointment_id == aid)
+    ).first()
+    if appt is None:
+        return f"[error] Appointment '{aid}' not found."
+    if appt.status != "booked":
+        return (
+            f"[error] Appointment {aid} has status={appt.status}; "
+            "only booked appointments can be cancelled."
+        )
+
+    service = appt.service
+    email_n = appt.customer_email
+    starts = appt.starts_at
+    if starts.tzinfo is None:
+        starts = starts.replace(tzinfo=ZoneInfo(FIRM_TIMEZONE))
+
+    appt.status = "cancelled"
+    appt.cancel_code_hash = None
+    appt.cancelled_at = datetime.now(timezone.utc)
+    session.flush()
+
+    when_display = format_when(starts)
+    send_template_email(
+        "appointment_cancelled",
+        email_n,
+        {
+            "service_name": service.name if service else "Appointment",
+            "when_display": when_display,
+            "appointment_id": appt.appointment_id,
+        },
+    )
+    return (
+        f"status=cancelled appointment_id={appt.appointment_id} "
+        f"when={when_display} email={email_n} "
+        "(Cancelled by owner; confirmation email was sent.)"
     )
 
 

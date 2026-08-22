@@ -19,6 +19,17 @@ JWT_AUDIENCE = (os.getenv("JWT_AUDIENCE") or "customer-support-widget").strip() 
 # Refresh when fewer than this many seconds remain on the token (frontend hint).
 JWT_REFRESH_SKEW_SECONDS = int(os.getenv("JWT_REFRESH_SKEW_SECONDS", "300"))
 
+# Owner dashboard (separate from anonymous widget JWT).
+OWNER_USERNAME = (os.getenv("OWNER_USERNAME") or "admin").strip() or "admin"
+OWNER_DEFAULT_PASSWORD = (os.getenv("OWNER_DEFAULT_PASSWORD") or "changeme").strip()
+OWNER_JWT_AUDIENCE = (
+    os.getenv("OWNER_JWT_AUDIENCE") or "owner-dashboard"
+).strip() or "owner-dashboard"
+OWNER_JWT_EXPIRE_MINUTES = int(os.getenv("OWNER_JWT_EXPIRE_MINUTES", "480"))
+ADMIN_UI_ORIGIN = (
+    os.getenv("ADMIN_UI_ORIGIN") or "http://localhost:3003"
+).rstrip("/")
+
 # Phase-1 in-process rate limit: anonymous session minting (POST /auth/token).
 # Max new sessions per client IP per rolling hour (per API process).
 SESSION_PER_IP_PER_HOUR = int(os.getenv("SESSION_PER_IP_PER_HOUR", "60"))

@@ -40,6 +40,7 @@ The shipped example is **single-tenant Palo Alto Advisory CPA.**
 - Support tickets when the AI cannot resolve or the user wants a human: name, email, phone, preferred call window, question, server-computed **respond_by** SLA
 - Outbound email (`console` / `smtp` / `resend`) with a shared plaintext footer
 - Streaming chat widget (SSE): quick actions, markdown + service images + lightbox, typing dots, multiline input, Whisper STT + TTS (`TTS_PROVIDER`) voice path
+- Owner dashboard (`/admin.html`): bootstrap admin login, first-time email bind + password change, appointments and tickets
 
 
 
@@ -215,7 +216,7 @@ uvicorn backend.app:app --reload --host 0.0.0.0 --port 8000
 cd frontend && npm install && npm run dev
 ```
 
-Open [http://localhost:3003](http://localhost:3003)
+Open [http://localhost:3003](http://localhost:3003) for the chat widget, or [http://localhost:3003/admin.html](http://localhost:3003/admin.html) for the **Owner dashboard** (default `admin` / `OWNER_DEFAULT_PASSWORD`, then bind email and change password on first login).
 
 ### Knowledge base
 
@@ -243,9 +244,25 @@ Optional RAGFlow: upload that sample Markdown (or your own KB), then set `RAGFLO
 | `GET /pay/status`       | Appointment `status` for the chat widget (no JWT / no cancel code)        |
 | `GET /pay/success`      | Post-checkout landing page (notifies the chat tab)                        |
 | `GET /pay/cancel`       | Checkout cancelled landing page                                           |
+| `POST /admin/login`     | Owner login (username/password → Owner JWT; rate-limited)                 |
+| `POST /admin/setup/*`   | First-time bind email + set password (Owner JWT, setup pending)           |
+| `POST /admin/forgot-password` / `reset-password` | Email reset for verified owner email                    |
+| `GET /admin/appointments` · `POST .../cancel` | List / staff-cancel appointments (setup complete)              |
+| `GET /admin/tickets` · `PATCH ...` | List / update ticket status                                     |
 
 
-Chat body: `{ "message": "..." }` (`thread_id` is ignored if sent). Appointment cancel still requires **email + cancel code**, not the site JWT.
+Chat body: `{ "message": "..." }` (`thread_id` is ignored if sent). Appointment cancel still requires **email + cancel code**, not the site JWT. Owners cancel via `/admin/appointments/{id}/cancel` without the customer code.
+
+### Owner dashboard
+
+Single-tenant staff console at `/admin.html` (dev: port 3003).
+
+1. Bootstrap user from `OWNER_USERNAME` / `OWNER_DEFAULT_PASSWORD` (seeded on API startup if no owner row exists).
+2. First login returns `setup_required: true` → bind admin email (verification code via `EMAIL_PROVIDER`) → set a new password (min 10 chars). Default password stops working afterward.
+3. Forgot password sends a link/token to the verified email (`ADMIN_UI_ORIGIN/admin.html?reset=...`).
+4. Dashboard tabs: **Appointments** (filter + cancel booked) and **Tickets** (filter + close / in progress).
+
+Owner JWT uses the same `JWT_SECRET` with audience `OWNER_JWT_AUDIENCE` (`owner-dashboard`). It is separate from the anonymous widget JWT.
 
 ### Anonymous session and access control
 
@@ -308,7 +325,7 @@ Not in this release: daily per-IP quotas, CAPTCHA, Origin checks, Redis-shared c
 
 ## Environment
 
-See [env_copy](env_copy). Important keys: `OPENAI_API_KEY`, `OPENAI_MODEL`, `LLM_PROVIDER` (`openai` / `anthropic` / `auto`), `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `JWT_SECRET`, `SESSION_JWT_EXPIRE_MINUTES` (default 30), `JWT_AUDIENCE`, `JWT_REFRESH_SKEW_SECONDS` (frontend renew window, default 300), `SESSION_PER_IP_PER_HOUR` (default 60), `SESSION_REFRESH_PER_SID_PER_MINUTE`, `SESSION_CHAT_TURNS_PER_SID` (default 100), `TRUST_PROXY_HEADERS`, `DATABASE_URL`, `KB_PROVIDER`, RAGFlow vars, `EMAIL_PROVIDER`, `EMAIL_FROM`, `FIRM_NAME`, `AGENT_NAME`, `FIRM_TIMEZONE`, `FIRM_WEBSITE`, `MEETING_LINK`, `FIRM_LOCATION`, `PUBLIC_BASE_URL`, `PAYMENT_HOLD_MINUTES`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRODUCT_CONSULT_30`, `STRIPE_PRODUCT_CONSULT_60` (optional legacy `STRIPE_PRODUCT_STRATEGY_SESSION` fallback). Whisper STT stays on OpenAI (`WHISPER_MIN_BYTES` / `WHISPER_MAX_BYTES`, default 256 / 3 MiB). TTS uses `TTS_PROVIDER` (`openai` / `elevenlabs`) with `OPENAI_TTS_*` or `ELEVENLABS_*`, and `TTS_MAX_CHARS` (default 2000) caps each `/tts` request.
+See [env_copy](env_copy). Important keys: `OPENAI_API_KEY`, `OPENAI_MODEL`, `LLM_PROVIDER` (`openai` / `anthropic` / `auto`), `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `JWT_SECRET`, `SESSION_JWT_EXPIRE_MINUTES` (default 30), `JWT_AUDIENCE`, `JWT_REFRESH_SKEW_SECONDS` (frontend renew window, default 300), `OWNER_USERNAME`, `OWNER_DEFAULT_PASSWORD`, `OWNER_JWT_AUDIENCE`, `OWNER_JWT_EXPIRE_MINUTES`, `ADMIN_UI_ORIGIN`, `SESSION_PER_IP_PER_HOUR` (default 60), `SESSION_REFRESH_PER_SID_PER_MINUTE`, `SESSION_CHAT_TURNS_PER_SID` (default 100), `TRUST_PROXY_HEADERS`, `DATABASE_URL`, `KB_PROVIDER`, RAGFlow vars, `EMAIL_PROVIDER`, `EMAIL_FROM`, `FIRM_NAME`, `AGENT_NAME`, `FIRM_TIMEZONE`, `FIRM_WEBSITE`, `MEETING_LINK`, `FIRM_LOCATION`, `PUBLIC_BASE_URL`, `PAYMENT_HOLD_MINUTES`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRODUCT_CONSULT_30`, `STRIPE_PRODUCT_CONSULT_60` (optional legacy `STRIPE_PRODUCT_STRATEGY_SESSION` fallback). Whisper STT stays on OpenAI (`WHISPER_MIN_BYTES` / `WHISPER_MAX_BYTES`, default 256 / 3 MiB). TTS uses `TTS_PROVIDER` (`openai` / `elevenlabs`) with `OPENAI_TTS_*` or `ELEVENLABS_*`, and `TTS_MAX_CHARS` (default 2000) caps each `/tts` request.
 Local Stripe webhook forwarding:
 
 ```bash
@@ -321,7 +338,7 @@ Do not commit `.env` (it is gitignored).
 
 ## **Next Steps**
 
-1. Reschedule, SMS alerts, visit reminders, and an owner dashboard for appointments and tickets.
+1. Reschedule, SMS alerts, and visit reminders (owner dashboard for appointments and tickets is in this release).
 2. **Multi-tenant SaaS design**
 
 ## License
