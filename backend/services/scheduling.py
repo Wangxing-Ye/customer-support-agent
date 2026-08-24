@@ -157,7 +157,7 @@ SERVICE_CATALOG = {
     "consult-60": {
         "name": "60-Minute Client Consultation",
         "description": (
-            "One-hour Zoom consultation with the firm. "
+            "One-hour in-person consultation at our Palo Alto office. "
             "Priced at USD 350. The slot is held until Stripe Checkout is completed."
         ),
         "duration_minutes": 60,
@@ -166,8 +166,8 @@ SERVICE_CATALOG = {
         "price_cents": 35000,
         "currency": "USD",
         "pay_when": "checkout_to_hold",
-        "fulfillment": "online",
-        "location_text": MEETING_LINK,
+        "fulfillment": "in_person",
+        "location_text": "",
     },
 }
 

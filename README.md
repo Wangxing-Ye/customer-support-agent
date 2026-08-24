@@ -113,7 +113,7 @@ Vite React widget → FastAPI → LangGraph agent
 | ----------------------------- | -------------- | -------------------- | ----------------------------------------------------- |
 | Free Initial Consultation     | `free-consult` | Free, 15 min         | Zoom, confirm immediately (`pay_when=none`)           |
 | 30-Minute Client Consultation | `consult-30`   | USD 175 (30 minutes) | Zoom, hold until Stripe Checkout (`checkout_to_hold`) |
-| 60-Minute Client Consultation | `consult-60`   | USD 350 (60 minutes) | Zoom, hold until Stripe Checkout (`checkout_to_hold`) |
+| 60-Minute Client Consultation | `consult-60`   | USD 350 (60 minutes) | In person, hold until Stripe Checkout (`checkout_to_hold`) |
 
 
 Slots offered: **9, 10, 11 AM and 1–5 PM** PT on the hour for all three services (15 / 30 / 60 minutes). Photos live under `frontend/public/assets/` (`Free-Initial-Consultation.jpg`, `30-Minute-Client-Consultation.jpg`, `60-Minute-Client-Consultation.jpg`).
