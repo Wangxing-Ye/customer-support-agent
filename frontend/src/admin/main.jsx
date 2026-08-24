@@ -289,12 +289,127 @@ function AppointmentLocation({ value }) {
   return text;
 }
 
+function isUpcoming(startsAt, nowMs) {
+  if (!startsAt) return false;
+  const t = new Date(startsAt).getTime();
+  return Number.isFinite(t) && t > nowMs;
+}
+
+function RescheduleModal({ appointment, onClose, onDone }) {
+  const [slots, setSlots] = useState([]);
+  const [startIso, setStartIso] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setError("");
+      try {
+        const j = await adminFetch(
+          `/admin/appointments/${encodeURIComponent(appointment.appointment_id)}/slots`,
+        );
+        if (!cancelled) {
+          setSlots(j.slots || []);
+          setStartIso(j.slots?.[0]?.start_iso || "");
+        }
+      } catch (err) {
+        if (!cancelled) setError(err.message || "Failed to load slots");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [appointment.appointment_id]);
+
+  async function submit(e) {
+    e.preventDefault();
+    if (!startIso) return;
+    setBusy(true);
+    setError("");
+    try {
+      await adminFetch(
+        `/admin/appointments/${encodeURIComponent(appointment.appointment_id)}/reschedule`,
+        { method: "POST", body: { start_iso: startIso } },
+      );
+      onDone();
+    } catch (err) {
+      setError(err.message || "Reschedule failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="admin-modal-backdrop" role="presentation" onClick={onClose}>
+      <div
+        className="admin-modal"
+        role="dialog"
+        aria-labelledby="reschedule-title"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 id="reschedule-title">Reschedule</h2>
+        <p className="muted">
+          {appointment.customer_name} · {appointment.service_name}
+          <br />
+          Current:{" "}
+          {appointment.starts_at
+            ? new Date(appointment.starts_at).toLocaleString()
+            : "—"}
+        </p>
+        {loading ? <p className="muted">Loading open slots…</p> : null}
+        {!loading && !slots.length ? (
+          <p className="admin-error">No open slots in the next two weeks.</p>
+        ) : null}
+        {slots.length ? (
+          <form onSubmit={submit}>
+            <label htmlFor="slot">New date &amp; time</label>
+            <select
+              id="slot"
+              value={startIso}
+              onChange={(e) => setStartIso(e.target.value)}
+              required
+            >
+              {slots.map((s) => (
+                <option key={s.start_iso} value={s.start_iso}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+            {error ? <div className="admin-error">{error}</div> : null}
+            <div className="admin-modal-actions">
+              <button type="button" className="admin-btn secondary" onClick={onClose}>
+                Cancel
+              </button>
+              <button type="submit" className="admin-btn" disabled={busy || !startIso}>
+                {busy ? "Saving…" : "Save new time"}
+              </button>
+            </div>
+          </form>
+        ) : (
+          <div className="admin-modal-actions">
+            <button type="button" className="admin-btn secondary" onClick={onClose}>
+              Close
+            </button>
+          </div>
+        )}
+        {error && !slots.length ? <div className="admin-error">{error}</div> : null}
+      </div>
+    </div>
+  );
+}
+
 function AppointmentsPanel() {
   const [status, setStatus] = useState("booked");
   const [rows, setRows] = useState([]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const [rescheduleAppt, setRescheduleAppt] = useState(null);
 
   const load = useCallback(async () => {
     setBusy(true);
@@ -353,6 +468,7 @@ function AppointmentsPanel() {
         <table className="admin-table">
           <thead>
             <tr>
+              <th>ID</th>
               <th>When</th>
               <th>Countdown</th>
               <th>Service</th>
@@ -360,13 +476,15 @@ function AppointmentsPanel() {
               <th>Location</th>
               <th>Status</th>
               <th>Created</th>
-              <th>ID</th>
               <th />
             </tr>
           </thead>
           <tbody>
             {rows.map((a) => (
               <tr key={a.appointment_id}>
+                <td>
+                  <code>{a.appointment_id}</code>
+                </td>
                 <td>{a.starts_at ? new Date(a.starts_at).toLocaleString() : "—"}</td>
                 <td>
                   {a.status === "booked" || a.status === "pending_payment"
@@ -385,14 +503,28 @@ function AppointmentsPanel() {
                 <td>{a.status}</td>
                 <td>{a.created_at ? new Date(a.created_at).toLocaleString() : "—"}</td>
                 <td>
-                  <code>{a.appointment_id}</code>
-                </td>
-                <td className="admin-actions">
-                  {a.status === "booked" ? (
-                    <button type="button" className="admin-btn secondary" onClick={() => cancel(a.appointment_id)}>
-                      Cancel
-                    </button>
-                  ) : null}
+                  <div className="admin-actions">
+                    {a.status === "booked" ? (
+                      <>
+                        <button
+                          type="button"
+                          className="admin-btn secondary"
+                          onClick={() => cancel(a.appointment_id)}
+                        >
+                          Cancel
+                        </button>
+                        {isUpcoming(a.starts_at, nowMs) ? (
+                          <button
+                            type="button"
+                            className="admin-btn secondary"
+                            onClick={() => setRescheduleAppt(a)}
+                          >
+                            Reschedule
+                          </button>
+                        ) : null}
+                      </>
+                    ) : null}
+                  </div>
                 </td>
               </tr>
             ))}
@@ -404,6 +536,16 @@ function AppointmentsPanel() {
           </tbody>
         </table>
       </div>
+      {rescheduleAppt ? (
+        <RescheduleModal
+          appointment={rescheduleAppt}
+          onClose={() => setRescheduleAppt(null)}
+          onDone={async () => {
+            setRescheduleAppt(null);
+            await load();
+          }}
+        />
+      ) : null}
     </div>
   );
 }
@@ -503,25 +645,54 @@ function TicketsPanel() {
                 <td>{t.summary}</td>
                 <td>{t.status}</td>
                 <td>{t.created_at ? new Date(t.created_at).toLocaleString() : "—"}</td>
-                <td className="admin-actions">
-                  {t.status !== "in_progress" ? (
-                    <button
-                      type="button"
-                      className="admin-btn secondary"
-                      onClick={() => setTicketStatus(t.ticket_id, "in_progress")}
-                    >
-                      In progress
-                    </button>
-                  ) : null}
-                  {t.status !== "closed" ? (
-                    <button
-                      type="button"
-                      className="admin-btn"
-                      onClick={() => setTicketStatus(t.ticket_id, "closed")}
-                    >
-                      Close
-                    </button>
-                  ) : null}
+                <td>
+                  <div className="admin-actions">
+                    {t.status === "open" ? (
+                      <button
+                        type="button"
+                        className="admin-btn secondary"
+                        onClick={() => setTicketStatus(t.ticket_id, "in_progress")}
+                      >
+                        In progress
+                      </button>
+                    ) : null}
+                    {t.status === "closed" ? (
+                      <button
+                        type="button"
+                        className="admin-btn secondary"
+                        onClick={() => {
+                          if (
+                            !window.confirm(
+                              `Reopen ticket ${t.ticket_id}? It will move back to in progress.`,
+                            )
+                          ) {
+                            return;
+                          }
+                          setTicketStatus(t.ticket_id, "in_progress");
+                        }}
+                      >
+                        Reopen
+                      </button>
+                    ) : null}
+                    {t.status !== "closed" ? (
+                      <button
+                        type="button"
+                        className="admin-btn"
+                        onClick={() => {
+                          if (
+                            !window.confirm(
+                              `Close ticket ${t.ticket_id}? Mark it as resolved.`,
+                            )
+                          ) {
+                            return;
+                          }
+                          setTicketStatus(t.ticket_id, "closed");
+                        }}
+                      >
+                        Close
+                      </button>
+                    ) : null}
+                  </div>
                 </td>
               </tr>
             ))}

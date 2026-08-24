@@ -7,9 +7,18 @@
 }
 
 .admin-shell {
-  max-width: 1100px;
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
   margin: 0 auto;
-  padding: 24px 16px 48px;
+  padding: 24px 24px 48px;
+}
+
+@media (min-width: 1280px) {
+  .admin-shell {
+    padding-left: 32px;
+    padding-right: 32px;
+  }
 }
 
 .admin-card {
@@ -164,20 +173,23 @@
   background: #fff;
   border-radius: 12px;
   box-shadow: 0 1px 3px rgb(0 0 0 / 0.08);
+  width: 100%;
 }
 
 table.admin-table {
   width: 100%;
+  min-width: 960px;
   border-collapse: collapse;
   font-size: 0.88rem;
+  table-layout: auto;
 }
 
 table.admin-table th,
 table.admin-table td {
   text-align: left;
-  padding: 10px 12px;
+  padding: 12px 14px;
   border-bottom: 1px solid #e2e8f0;
-  vertical-align: top;
+  vertical-align: middle;
 }
 
 table.admin-table th {
@@ -185,14 +197,73 @@ table.admin-table th {
   font-weight: 700;
 }
 
+/* Do not set display:flex on <td> — it breaks row border alignment. */
 .admin-actions {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  flex-wrap: nowrap;
   gap: 6px;
+  align-items: stretch;
+  min-width: 100px;
 }
 
 .admin-actions button {
   margin-top: 0;
   padding: 6px 10px;
   font-size: 0.8rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.admin-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgb(15 23 42 / 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  padding: 16px;
+}
+
+.admin-modal {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 20px 40px rgb(0 0 0 / 0.2);
+  padding: 24px;
+  width: min(440px, 100%);
+  max-height: 90vh;
+  overflow: auto;
+}
+
+.admin-modal h2 {
+  margin: 0 0 8px;
+  font-size: 1.2rem;
+}
+
+.admin-modal label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin: 12px 0 6px;
+}
+
+.admin-modal select {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 0.95rem;
+}
+
+.admin-modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+.admin-modal-actions .admin-btn {
+  margin-top: 0;
 }

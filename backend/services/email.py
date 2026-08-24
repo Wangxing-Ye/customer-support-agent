@@ -56,6 +56,21 @@ TEMPLATES = {
             "Appointment ID: {appointment_id}\n"
         ),
     },
+    "appointment_rescheduled": {
+        "subject": "Appointment rescheduled — {firm_name}",
+        "body": (
+            "Your appointment has been rescheduled.\n\n"
+            "Service: {service_name}\n"
+            "Previously: {old_when_display}\n"
+            "New time: {when_display}\n"
+            "Name: {customer_name}\n"
+            "Appointment ID: {appointment_id}\n\n"
+            "{fulfillment_block}"
+            "Your existing cancellation code still applies.\n\n"
+            "Add to Google Calendar:\n"
+            "{google_cal_url}\n"
+        ),
+    },
     "ticket_created": {
         "subject": "Support ticket {ticket_id} — {firm_name}",
         "body": (

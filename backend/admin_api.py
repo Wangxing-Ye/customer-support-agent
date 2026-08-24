@@ -29,7 +29,9 @@ from backend.services.email import send_template_email
 from backend.services.scheduling import (
     cancel_appointment_as_owner,
     delivery_location,
+    list_open_slots,
     normalize_email,
+    reschedule_appointment_as_owner,
 )
 from backend.services.sla import format_respond_by
 
@@ -64,6 +66,10 @@ class ResetPasswordBody(BaseModel):
 
 class TicketPatchBody(BaseModel):
     status: Literal["open", "in_progress", "closed"]
+
+
+class RescheduleBody(BaseModel):
+    start_iso: str
 
 
 def _get_owner(session: Session, owner_id: int) -> Owner:
@@ -337,6 +343,59 @@ def cancel_appointment(
 ):
     with session_scope() as session:
         result = cancel_appointment_as_owner(session, appointment_id)
+    if result.startswith("[error]"):
+        raise HTTPException(status_code=400, detail=result.removeprefix("[error]").strip())
+    return {"ok": True, "detail": result}
+
+
+@router.get("/appointments/{appointment_id}/slots")
+def appointment_open_slots(
+    appointment_id: str,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    _claims: dict = Depends(require_owner_ready),
+):
+    with session_scope() as session:
+        appt = session.scalars(
+            select(Appointment)
+            .options(joinedload(Appointment.service))
+            .where(Appointment.appointment_id == appointment_id.strip())
+        ).first()
+        if appt is None:
+            raise HTTPException(status_code=404, detail="Appointment not found")
+        if appt.status != "booked":
+            raise HTTPException(
+                status_code=400,
+                detail="Only booked appointments can be rescheduled",
+            )
+        svc = appt.service
+        if svc is None:
+            raise HTTPException(status_code=400, detail="Appointment has no service")
+        slots = list_open_slots(
+            session,
+            svc.slug,
+            date_from=date_from,
+            date_to=date_to,
+            exclude_appointment_id=appt.appointment_id,
+            limit=64,
+        )
+        return {
+            "appointment_id": appt.appointment_id,
+            "service_slug": svc.slug,
+            "slots": slots,
+        }
+
+
+@router.post("/appointments/{appointment_id}/reschedule")
+def reschedule_appointment(
+    appointment_id: str,
+    body: RescheduleBody,
+    _claims: dict = Depends(require_owner_ready),
+):
+    with session_scope() as session:
+        result = reschedule_appointment_as_owner(
+            session, appointment_id, body.start_iso
+        )
     if result.startswith("[error]"):
         raise HTTPException(status_code=400, detail=result.removeprefix("[error]").strip())
     return {"ok": True, "detail": result}

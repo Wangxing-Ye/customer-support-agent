@@ -289,6 +289,7 @@ def _open_slot_datetimes(
     service: Service,
     start: datetime,
     end: datetime,
+    exclude_appointment_id: str | None = None,
 ) -> list[datetime]:
     tz = ZoneInfo(FIRM_TIMEZONE)
     now = datetime.now(tz)
@@ -307,6 +308,7 @@ def _open_slot_datetimes(
             Appointment.ends_at > start,
         )
     ).all()
+    exclude_id = (exclude_appointment_id or "").strip()
 
     open_slots: list[datetime] = []
     day = start.astimezone(tz).replace(hour=0, minute=0, second=0, microsecond=0)
@@ -324,6 +326,8 @@ def _open_slot_datetimes(
                 slot_end = add_working_minutes(slot, service.duration_minutes, tz)
                 overlaps = False
                 for other in occupying:
+                    if exclude_id and other.appointment_id == exclude_id:
+                        continue
                     other_start = other.starts_at
                     other_end = other.ends_at
                     if other_start.tzinfo is None:
@@ -338,6 +342,56 @@ def _open_slot_datetimes(
                 open_slots.append(slot)
         day += timedelta(days=1)
     return open_slots
+
+
+def list_open_slots(
+    session: Session,
+    service_slug: str,
+    *,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    exclude_appointment_id: str | None = None,
+    limit: int = 48,
+) -> list[dict]:
+    """Return structured open slots for admin UI (ISO + display labels)."""
+    service = session.scalar(
+        select(Service).where(Service.slug == service_slug, Service.active.is_(True))
+    )
+    if not service or not service.bookable:
+        return []
+
+    tz = ZoneInfo(FIRM_TIMEZONE)
+    now = datetime.now(tz)
+    if date_from:
+        start = datetime.fromisoformat(date_from.replace("Z", "+00:00"))
+        if start.tzinfo is None:
+            start = start.replace(tzinfo=tz)
+    else:
+        start = now
+    if date_to:
+        end = datetime.fromisoformat(date_to.replace("Z", "+00:00"))
+        if end.tzinfo is None:
+            end = end.replace(tzinfo=tz)
+    else:
+        end = start + timedelta(days=14)
+
+    slots = _open_slot_datetimes(
+        session,
+        service,
+        start,
+        end,
+        exclude_appointment_id=exclude_appointment_id,
+    )
+    out: list[dict] = []
+    for s in slots[: max(1, limit)]:
+        local = s.astimezone(tz)
+        out.append(
+            {
+                "start_iso": s.isoformat(),
+                "label": f"{local.strftime('%a, %b %d, %Y')} · {format_slot_clock(s)}",
+            }
+        )
+    return out
 
 
 def list_availability(
@@ -1023,6 +1077,127 @@ def cancel_appointment_as_owner(session: Session, appointment_id: str) -> str:
         f"status=cancelled appointment_id={appt.appointment_id} "
         f"when={when_display} email={email_n} "
         "(Cancelled by owner; confirmation email was sent.)"
+    )
+
+
+def reschedule_appointment_as_owner(
+    session: Session,
+    appointment_id: str,
+    start_iso: str,
+) -> str:
+    """Move a booked upcoming appointment to a new open slot (owner dashboard)."""
+    aid = (appointment_id or "").strip()
+    if not aid:
+        return "[error] appointment_id is required."
+    if not (start_iso or "").strip():
+        return "[error] start_iso is required."
+
+    appt = session.scalars(
+        select(Appointment).where(Appointment.appointment_id == aid)
+    ).first()
+    if appt is None:
+        return f"[error] Appointment '{aid}' not found."
+    if appt.status != "booked":
+        return (
+            f"[error] Appointment {aid} has status={appt.status}; "
+            "only booked appointments can be rescheduled."
+        )
+
+    tz = ZoneInfo(FIRM_TIMEZONE)
+    now = datetime.now(tz)
+    old_starts = appt.starts_at
+    if old_starts.tzinfo is None:
+        old_starts = old_starts.replace(tzinfo=tz)
+    else:
+        old_starts = old_starts.astimezone(tz)
+    if old_starts <= now:
+        return "[error] Only upcoming appointments can be rescheduled."
+
+    service = appt.service
+    if service is None:
+        return "[error] Appointment has no service."
+
+    try:
+        starts = datetime.fromisoformat(start_iso.strip().replace("Z", "+00:00"))
+    except ValueError:
+        return "[error] Invalid start_iso."
+    if starts.tzinfo is None:
+        starts = starts.replace(tzinfo=tz)
+    else:
+        starts = starts.astimezone(tz)
+
+    window_slots = _open_slot_datetimes(
+        session,
+        service,
+        now,
+        now + timedelta(days=21),
+        exclude_appointment_id=aid,
+    )
+    matched = None
+    for s in window_slots:
+        if abs((s.astimezone(tz) - starts).total_seconds()) < 60:
+            matched = s.astimezone(tz)
+            break
+    if matched is None:
+        return (
+            "[error] That time is not available. Pick an open slot from the list."
+        )
+
+    ends = add_working_minutes(matched, service.duration_minutes, tz)
+    conflict = session.scalar(
+        select(Appointment).where(
+            Appointment.appointment_id != aid,
+            Appointment.status.in_(("booked", "pending_payment")),
+            Appointment.starts_at < ends,
+            Appointment.ends_at > matched,
+        )
+    )
+    if conflict:
+        return "[error] That time was just taken. Please pick another slot."
+
+    old_when = format_when(old_starts)
+    appt.starts_at = matched
+    appt.ends_at = ends
+    appt.location_for_service = delivery_location(service)
+    session.flush()
+
+    new_when = format_when(matched)
+    loc = delivery_location(service)
+    ful = service_fulfillment(service)
+    place_line = f"Location: {loc}\n" if ful == "in_person" else f"Meeting link: {loc}\n"
+    google_cal_url = google_calendar_template_url(
+        title=f"{service.name} — {FIRM_NAME}",
+        starts=matched,
+        ends=ends,
+        details=(
+            f"Appointment ID: {appt.appointment_id}\n"
+            f"Service: {service.name}\n"
+            f"Client: {appt.customer_name}\n"
+            f"{place_line}"
+            "Your existing cancellation code still applies."
+        ),
+        location=loc,
+    )
+    fulfillment_block = (
+        f"Location:\n{loc}\n\n" if ful == "in_person" else f"Meeting link (Zoom):\n{loc}\n\n"
+    )
+    send_template_email(
+        "appointment_rescheduled",
+        appt.customer_email,
+        {
+            "service_name": service.name,
+            "old_when_display": old_when,
+            "when_display": new_when,
+            "customer_name": appt.customer_name,
+            "appointment_id": appt.appointment_id,
+            "google_cal_url": google_cal_url,
+            "fulfillment_block": fulfillment_block,
+        },
+    )
+    return (
+        f"status=booked appointment_id={appt.appointment_id} "
+        f"when={new_when} (was {old_when}) "
+        "(Rescheduled by owner; confirmation email was sent.)"
     )
 
 
