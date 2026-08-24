@@ -51,6 +51,7 @@ def book_appointment(
 
     For pay_when=none, pay_on_arrival, or pay_after, confirms immediately and emails a cancellation code.
     For checkout_to_hold, holds the slot (pending_payment) and returns a Stripe checkout_url; not confirmed until paid.
+    Tool results omit plaintext cancel codes and contact fields (sent by email only).
     """
     with session_scope() as session:
         return _book(
@@ -123,6 +124,7 @@ def create_ticket(
     Requires name, email, phone, preferred_call_window, and question (the user's request in their own words).
     reason must be 'user_requested' or 'unresolved'.
     Returns ticket_id and respond_by_display — use that display time exactly in your reply.
+    Tool results omit full email/phone/name (confirmation email carries those).
     """
     with session_scope() as session:
         return _create_ticket(

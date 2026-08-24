@@ -587,10 +587,11 @@ def book_appointment(
             )
         return (
             f"status=pending_payment appointment_id={appt_id} service={service.name} "
-            f"when={when_display} name={name} email={email} "
+            f"when={when_display} "
             f"amount={currency} {dollars:.2f} "
             f"payment_due_at={due.isoformat()} checkout_url={url} "
-            f"{extra}"
+            f"{extra} "
+            "(Do not repeat the customer's full email or name in your reply.)"
         )
 
     cancel_code = generate_cancel_code()
@@ -691,17 +692,20 @@ def _send_confirmation_and_result(
     elif pay_when == "pay_after":
         arrival = (
             " Tell the user payment is due within 3 business days after the visit, "
-            f"billed for actual time, and that the confirmation email includes the cancellation code and {email_hint}: {loc}"
+            f"billed for actual time, and that the confirmation email includes the "
+            f"cancellation code and {email_hint}."
         )
     else:
         arrival = (
-            f" Tell the user the confirmation email includes the cancellation code and {email_hint}: {loc}"
+            f" Tell the user the confirmation email includes the cancellation code "
+            f"and {email_hint}."
         )
     return (
         f"status=booked appointment_id={appt.appointment_id} service={service.name} "
-        f"when={when_display} name={name} email={email} "
-        f"cancel_code={cancel_code} {agent_place} fulfillment={ful} pay_when={pay_when} "
-        f"(A confirmation email was sent with the cancellation code.{arrival})"
+        f"when={when_display} {agent_place} fulfillment={ful} pay_when={pay_when} "
+        f"(A confirmation email was sent with the cancellation code. "
+        f"Do not invent or display the cancel code, full email, or name in your reply."
+        f"{arrival})"
     )
 
 
@@ -918,7 +922,7 @@ def lookup_appointments(
         parts = [
             f"detail appointment_id={appt.appointment_id} status=pending_payment "
             f"service={svc_name} when={when} ends={ends_when} "
-            f"email={email_n} fulfillment={ful} pay_when={pay_when}",
+            f"fulfillment={ful} pay_when={pay_when}",
         ]
         if due_s:
             parts.append(f"payment_due_at={due_s}")
@@ -936,10 +940,10 @@ def lookup_appointments(
     return (
         f"detail appointment_id={appt.appointment_id} status=booked "
         f"service={svc_name} when={when} ends={ends_when} "
-        f"name={appt.customer_name} email={email_n} "
         f"{place_key}={loc} fulfillment={ful} pay_when={pay_when} "
         f"self_service_cancel={'yes' if can_self else 'no'} "
-        f"cancel_window_hours={CANCEL_WINDOW_HOURS}"
+        f"cancel_window_hours={CANCEL_WINDOW_HOURS} "
+        "(Do not repeat the customer's full email or name in your reply.)"
         + (
             ""
             if can_self
@@ -1030,8 +1034,9 @@ def cancel_appointment(
     )
     return (
         f"status=cancelled appointment_id={appt.appointment_id} "
-        f"when={when_display} email={email_n} "
-        "(A cancellation confirmation email was sent.)"
+        f"when={when_display} "
+        "(A cancellation confirmation email was sent. "
+        "Do not repeat the customer's full email in your reply.)"
     )
 
 
@@ -1075,7 +1080,7 @@ def cancel_appointment_as_owner(session: Session, appointment_id: str) -> str:
     )
     return (
         f"status=cancelled appointment_id={appt.appointment_id} "
-        f"when={when_display} email={email_n} "
+        f"when={when_display} "
         "(Cancelled by owner; confirmation email was sent.)"
     )
 

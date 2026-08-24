@@ -87,11 +87,9 @@ def create_support_ticket(
                 f"ticket_id={t.ticket_id} status={t.status} priority={t.priority} "
                 f"respond_by={t.respond_by.isoformat()} "
                 f"respond_by_display={format_respond_by(t.respond_by)} "
-                f"contact_email={t.email} "
-                f"name={getattr(t, 'name', '') or name_n} "
-                f"phone={getattr(t, 'phone', '') or phone_n} "
                 f"preferred_call_window={getattr(t, 'preferred_call_window', '') or window} "
-                "(Existing open ticket reused — do not invent a new SLA.)"
+                "(Existing open ticket reused — do not invent a new SLA. "
+                "Do not repeat full email, phone, or name in your reply.)"
             )
 
     respond_by = compute_respond_by(priority)
@@ -131,7 +129,7 @@ def create_support_ticket(
         f"ticket_id={ticket_id} status=open priority={priority} reason={reason_n} "
         f"respond_by={respond_by.isoformat()} "
         f"respond_by_display={display} "
-        f"name={name_n} contact_email={email_n} phone={phone_n} "
         f"preferred_call_window={window} "
-        "(Use respond_by_display exactly in your reply to the user. Do not invent another time.)"
+        "(Use respond_by_display exactly in your reply. Do not invent another time. "
+        "A confirmation email was sent. Do not repeat full email, phone, or name.)"
     )
