@@ -29,7 +29,11 @@ It is built so the owner can:
 
 The shipped example is **single-tenant Palo Alto Advisory CPA.** 
 
-
+<p align="center">
+  <img src="docs/Screenshot%201.jpg" alt="Screenshot 1" width="32%" />
+  <img src="docs/Screenshot%202.jpg" alt="Screenshot 2" width="32%" />
+  <img src="docs/Screenshot%203.jpg" alt="Screenshot 3" width="32%" />
+</p>
 
 ## Features
 
@@ -64,8 +68,6 @@ Appointment businesses share three layers. This demo keeps **one** `Service` / `
 | Location / staff / court as a bookable resource        | **Not covered**                                                                     |
 
 
-
-
 ### Booking
 
 
@@ -78,8 +80,6 @@ Appointment businesses share three layers. This demo keeps **one** `Service` / `
 | `pending_payment` / expire unpaid holds                                                 | **Covered** (15-minute hold; overdue → `expired`, slot free) |
 | Configurable hours (evenings, 90-minute services)                                       | **Not covered** (fixed 9–11 AM and 1–5 PM PT)                |
 | `party_size`                                                                            | **Not covered**                                              |
-
-
 
 
 ### Pay-when
@@ -115,10 +115,10 @@ Vite React widget → FastAPI → LangGraph agent
 ## Demo services
 
 
-| Service                       | Slug           | Price                | Booking                                                    |
-| ----------------------------- | -------------- | -------------------- | ---------------------------------------------------------- |
-| Free Initial Consultation     | `free-consult` | Free, 15 min         | Zoom, confirm immediately (`pay_when=none`)                |
-| 30-Minute Client Consultation | `consult-30`   | USD 175 (30 minutes) | Zoom, hold until Stripe Checkout (`checkout_to_hold`)      |
+| Service                       | Slug           | Price                | Booking                                               |
+| ----------------------------- | -------------- | -------------------- | ----------------------------------------------------- |
+| Free Initial Consultation     | `free-consult` | Free, 15 min         | Zoom, confirm immediately (`pay_when=none`)           |
+| 30-Minute Client Consultation | `consult-30`   | USD 175 (30 minutes) | Zoom, hold until Stripe Checkout (`checkout_to_hold`) |
 | 60-Minute Client Consultation | `consult-60`   | USD 350 (60 minutes) | In person, hold until Stripe Checkout (`checkout_to_hold`) |
 
 
@@ -238,23 +238,23 @@ Optional RAGFlow: upload that sample Markdown (or your own KB), then set `RAGFLO
 ## API
 
 
-| Endpoint                                         | Purpose                                                                   |
-| ------------------------------------------------ | ------------------------------------------------------------------------- |
-| `POST /auth/token`                               | Anonymous session JWT (`sid`, 30 min TTL by default); rate-limited per IP |
-| `POST /auth/refresh`                             | Same `sid`, new JWT (Bearer required; rate-limited per sid / IP)          |
-| `POST /chat`                                     | Sync chat (used by voice path); thread = `chat:{sid}`                     |
-| `POST /chat/stream`                              | SSE token stream (text UI); thread = `chat:{sid}`                         |
-| `POST /transcribe`                               | Whisper STT (OpenAI)                                                      |
-| `POST /tts`                                      | Speech synthesis (`TTS_PROVIDER`: OpenAI or ElevenLabs)                   |
-| `POST /webhooks/stripe`                          | Stripe Checkout events (no JWT; verify `STRIPE_WEBHOOK_SECRET`)           |
-| `GET /pay/status`                                | Appointment `status` for the chat widget (no JWT / no cancel code)        |
-| `GET /pay/success`                               | Post-checkout landing page (notifies the chat tab)                        |
-| `GET /pay/cancel`                                | Checkout cancelled landing page                                           |
-| `POST /admin/login`                              | Owner login (username/password → Owner JWT; rate-limited)                 |
-| `POST /admin/setup/*`                            | First-time bind email + set password (Owner JWT, setup pending)           |
-| `POST /admin/forgot-password` / `reset-password` | Email reset for verified owner email                                      |
-| `GET /admin/appointments` · `POST .../cancel`    | List / staff-cancel appointments (setup complete)                         |
-| `GET /admin/tickets` · `PATCH ...`               | List / update ticket status                                               |
+| Endpoint                | Purpose                                                                   |
+| ----------------------- | ------------------------------------------------------------------------- |
+| `POST /auth/token`      | Anonymous session JWT (`sid`, 30 min TTL by default); rate-limited per IP |
+| `POST /auth/refresh`    | Same `sid`, new JWT (Bearer required; rate-limited per sid / IP)          |
+| `POST /chat`            | Sync chat (used by voice path); thread = `chat:{sid}`                     |
+| `POST /chat/stream`     | SSE token stream (text UI); thread = `chat:{sid}`                         |
+| `POST /transcribe`      | Whisper STT (OpenAI)                                                      |
+| `POST /tts`             | Speech synthesis (`TTS_PROVIDER`: OpenAI or ElevenLabs)                   |
+| `POST /webhooks/stripe` | Stripe Checkout events (no JWT; verify `STRIPE_WEBHOOK_SECRET`)           |
+| `GET /pay/status`       | Appointment `status` for the chat widget (no JWT / no cancel code)        |
+| `GET /pay/success`      | Post-checkout landing page (notifies the chat tab)                        |
+| `GET /pay/cancel`       | Checkout cancelled landing page                                           |
+| `POST /admin/login`     | Owner login (username/password → Owner JWT; rate-limited)                 |
+| `POST /admin/setup/*`   | First-time bind email + set password (Owner JWT, setup pending)           |
+| `POST /admin/forgot-password` / `reset-password` | Email reset for verified owner email                    |
+| `GET /admin/appointments` · `POST .../cancel` | List / staff-cancel appointments (setup complete)              |
+| `GET /admin/tickets` · `PATCH ...` | List / update ticket status                                     |
 
 
 Chat body: `{ "message": "..." }` (`thread_id` is ignored if sent). Appointment cancel still requires **email + cancel code**, not the site JWT. Owners cancel via `/admin/appointments/{id}/cancel` without the customer code.
@@ -344,7 +344,8 @@ Do not commit `.env` (it is gitignored).
 
 ## **Next Steps**
 
-**Multi-tenant SaaS design**
+1. Reschedule, SMS alerts, and visit reminders (owner dashboard for appointments and tickets is in this release).
+2. **Multi-tenant SaaS design**
 
 ## License
 
