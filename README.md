@@ -2,6 +2,10 @@
 
 A client-services AI Agent for **booking / appointment businesses**. **ServiceEmma** is the product name. This project focuses on **booking and appointment businesses**: online Q&A, a service catalog, reservations, pay-when rules, and tickets when chat cannot resolve the question.
 
+<p align="center">
+  <img src="docs/Screenshot%200.jpg" alt="Screenshot 0" width="80%" />
+</p>
+
 ## Background
 
 Major U.S. industries that need online appointment / booking services, with estimated small and midsize business counts (nonemployer firms plus employers with fewer than 500 employees):
@@ -19,7 +23,7 @@ Major U.S. industries that need online appointment / booking services, with esti
 | **Total**                                                         | **~7.7–8.3 million** |
 
 
-This repo is a **lightweight, professional, shippable Client Services Agent**. It is not a generic auto-reply bot. The assistant grounds answers in a firm knowledge base (local Markdown by default; RAGFlow when configured), books or cancels appointments, and escalates to a human via a support ticket. 
+This repo is a **lightweight, professional, shippable Customer Services Agent**. It is not a generic auto-reply bot. The assistant grounds answers in a firm knowledge base, books or cancels appointments, and escalates to a human via a support ticket. 
 
 It is built so the owner can:
 
