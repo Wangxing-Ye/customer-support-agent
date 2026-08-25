@@ -211,7 +211,7 @@ Open [http://localhost:3003](http://localhost:3003) for the chat widget, or [htt
 `KB_PROVIDER=auto` (default):
 
 - If `RAGFLOW_API_KEY` and `KNOWLEDGE_BASE_ID` are set, retrieve from self-hosted RAGFlow (brand-prefix retry). Empty or error responses fall back to the local file.
-- Otherwise inject [docs/kb/summit-advisory-group.md](docs/kb/summit-advisory-group.md) in full — enough for a small firm FAQ (under ~20 pages).
+- Otherwise inject [docs/kb/palo-alto-advisory-cpa.md](docs/kb/palo-alto-advisory-cpa.md) in full — enough for a small firm FAQ (under ~20 pages).
 
 Set `KB_PROVIDER=local` to skip RAGFlow, or `KB_PROVIDER=ragflow` to require it. Override the file with `KB_LOCAL_PATH`.
 
