@@ -62,8 +62,8 @@ Appointment businesses share three layers. This demo keeps **one** `Service` / `
 | Service name, duration, bookable vs ticket-only, photo | **Covered** (`services` + seed catalog)                                             |
 | Price as display copy (e.g. USD 175 / 30 min)          | **Covered** (catalog text plus `price_cents` / currency)                            |
 | `price_cents` + currency for checkout                  | **Covered** (catalog amount; paid consults charge the Stripe product default price) |
-| `pay_when`: `none`                                     | `checkout_to_hold`                                                                  |
-| `fulfillment`: `online`                                | `in_person` (address vs meeting link)                                               |
+| `pay_when`                                             | `none` / `checkout_to_hold` / `pay_after`                                               |
+| `fulfillment`                                          | `online` / `in_person`                                                                  |
 
 
 ### Booking
@@ -92,8 +92,6 @@ Appointment businesses share three layers. This demo keeps **one** `Service` / `
 
 Cancel codes exist only after **booked**. Unpaid `pending_payment` rows expire; they cannot be cancelled with a code.
 
-**Still later:** Stripe Connect, capacity / `party_size`, multi-location staff/courts as resources. Vertical differences (no clinical advice, child age in notes) belong in KB + these fields, not a new agent per NAICS.
-
 ## Architecture
 
 ```text
@@ -103,7 +101,8 @@ Vite React widget → FastAPI → LangGraph agent
                        ├─ Knowledge retrieval (local Markdown or RAGFlow)
                        ├─ Postgres (services, availability, appointments, tickets, email_log)
                        ├─ LangGraph PostgresSaver (falls back to MemorySaver / SQLite)
-                       └─ Email provider (console | smtp | resend) + Stripe Checkout (paid consultations)
+                       ├─ Email provider (console | smtp | resend)
+                       └─ Payment (Stripe Checkout for consultations)
 ```
 
 
@@ -207,6 +206,8 @@ Open [http://localhost:3003](http://localhost:3003) for the chat widget, or [htt
 
 ### Knowledge base
 
+**local Markdown** = simple, local, full-file injection; **RAGFlow** = optional retrieval service that returns relevant passages per question.
+
 `KB_PROVIDER=auto` (default):
 
 - If `RAGFLOW_API_KEY` and `KNOWLEDGE_BASE_ID` are set, retrieve from self-hosted RAGFlow (brand-prefix retry). Empty or error responses fall back to the local file.
@@ -299,7 +300,7 @@ Rough upper bound with defaults: about **60 new sid/IP/hour × 100 turns ≈ 600
 
 Not in this release: daily per-IP quotas, CAPTCHA, Origin checks, Redis-shared counters, vendor LLM quota APIs.
 
-## Tools (LangGraph)
+## Tools
 
 - `ragflow_retrieve` (local Markdown or RAGFlow), `get_services`, `list_availability`
 - `book_appointment` → `booked` + confirmation email, or `pending_payment` + Stripe `checkout_url`
@@ -307,6 +308,14 @@ Not in this release: daily per-IP quotas, CAPTCHA, Origin checks, Redis-shared c
 - `simulate_payment` → checks Stripe (or local hold) then confirms and emails the cancel code
 - `cancel_appointment(email, cancel_code)` → only for `booked` appointments
 - `create_ticket` → requires name, email, phone, call window, question; returns `ticket_id` + `respond_by_display`
+
+
+
+## LangGraph
+
+**LangGraph** orchestrates the chat agent as a stateful graph (not a single one-shot LLM call): the model can reason, call tools, see tool results, and loop until it finishes. Conversation state is checkpointed by `thread_id` (`chat:{sid}`) via PostgresSaver when `CHECKPOINT_DATABASE_URL` is set, otherwise MemorySaver.
+
+In this repo (`backend/agent/graph.py`): user message → agent node (LLM + system prompt + RAG context) → optional tools node (booking, lookup, tickets, …) → back to agent → end. The LLM writes replies; the tools perform real side effects (DB, email, Stripe).
 
 
 
