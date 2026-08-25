@@ -1,6 +1,6 @@
 # Customer Services Agent (Professional Services)
 
-A client-services AI Agent for **booking / appointment businesses**. **ServiceEmma** is the product name. This project focuses on **booking and appointment businesses**: online Q&A, a service catalog, reservations, pay-when rules, and tickets when chat cannot resolve the question.
+A client-services AI Agent for **booking / appointment businesses**. **ServiceEmma** is the product name. This project focuses on **booking and appointment businesses**: online Q&A, a service catalog, reservations and payment, and tickets when chat cannot resolve the question.
 
 <p align="center">
   <img src="docs/Screenshot%200.jpg" alt="Screenshot 0" width="80%" />
