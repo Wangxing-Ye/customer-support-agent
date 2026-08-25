@@ -52,7 +52,7 @@ The shipped example is **single-tenant Palo Alto Advisory CPA.**
 
 ## Design: catalog, booking, pay-when
 
-Appointment businesses share three layers. This demo keeps **one** `Service` / `Appointment` shape. Palo Alto Advisory CPA free consults confirm immediately on Zoom; paid consultations use Stripe Checkout to hold the slot. Capacity and extra verticals are still **not covered**.
+Appointment businesses share three layers. This demo keeps **one** `Service` / `Appointment` shape. Palo Alto Advisory CPA free consults confirm immediately on Zoom; paid consultations use Stripe Checkout to hold the slot.
 
 ### Catalog
 
@@ -64,8 +64,6 @@ Appointment businesses share three layers. This demo keeps **one** `Service` / `
 | `price_cents` + currency for checkout                  | **Covered** (catalog amount; paid consults charge the Stripe product default price) |
 | `pay_when`: `none`                                     | `checkout_to_hold`                                                                  |
 | `fulfillment`: `online`                                | `in_person` (address vs meeting link)                                               |
-| Capacity > 1 (court party, class seats)                | **Not covered** (implicit capacity = 1)                                             |
-| Location / staff / court as a bookable resource        | **Not covered**                                                                     |
 
 
 ### Booking
@@ -78,8 +76,6 @@ Appointment businesses share three layers. This demo keeps **one** `Service` / `
 | Online meeting link + Google Calendar URL                                               | **Covered**                                                  |
 | In-person location on the confirmation                                                  | **Covered** (when `fulfillment=in_person`)                   |
 | `pending_payment` / expire unpaid holds                                                 | **Covered** (15-minute hold; overdue → `expired`, slot free) |
-| Configurable hours (evenings, 90-minute services)                                       | **Not covered** (fixed 9–11 AM and 1–5 PM PT)                |
-| `party_size`                                                                            | **Not covered**                                              |
 
 
 ### Pay-when
@@ -151,22 +147,6 @@ Firm name and site come from `FIRM_NAME` and `FIRM_WEBSITE`. The assistant's dis
 Open [http://localhost:3003](http://localhost:3003) after starting frontend + backend.
 
 Header title, subtitle, greeting, and quick-action chips come from `BRAND` in [frontend/src/config.js](frontend/src/config.js). Change that object for another appointment business; keep the same agent. Default chips: **Our Services**, **Book appointment**, **Check appointment**, **Cancel appointment**, **Support Ticket**. Text chat uses `POST /chat/stream` (SSE). Voice uses `POST /chat` then TTS. Service images in replies can be clicked to enlarge.
-
-## Screenshots
-
-Widget demo for **Palo Alto Advisory CPA** (assets under `docs/`):
-
-### Book appointment — catalog with service photos
-
-Book appointment with service photos
-
-### Paid consultation — Stripe hold (not yet confirmed)
-
-Paid consultation held until Stripe Checkout
-
-### Pay with Stripe — payment received
-
-Stripe payment confirmed
 
 ## Quick start
 
@@ -342,10 +322,9 @@ Use the CLI webhook secret in `STRIPE_WEBHOOK_SECRET`. Create Stripe products wi
 
 Do not commit `.env` (it is gitignored).
 
-## **Next Steps**
+## Next Steps
 
-1. Reschedule, SMS alerts, and visit reminders (owner dashboard for appointments and tickets is in this release).
-2. **Multi-tenant SaaS design**
+None for now — maintain as time allows.
 
 ## License
 
