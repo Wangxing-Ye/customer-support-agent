@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from backend.config import ADMIN_UI_ORIGIN
 from backend.db import session_scope
-from backend.models import Appointment, Owner, Ticket
+from backend.models import Appointment, Owner, Ticket, TicketActivity
 from backend.owner_auth import (
     create_owner_token,
     generate_email_code,
@@ -30,10 +30,18 @@ from backend.services.scheduling import (
     cancel_appointment_as_owner,
     delivery_location,
     list_open_slots,
+    mark_appointment_outcome_as_owner,
     normalize_email,
     reschedule_appointment_as_owner,
 )
 from backend.services.sla import format_respond_by
+from backend.services.tickets import (
+    PHONE_OUTCOMES,
+    add_ticket_note,
+    add_ticket_phone_log,
+    list_ticket_activities,
+    send_ticket_email_reply,
+)
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -68,8 +76,31 @@ class TicketPatchBody(BaseModel):
     status: Literal["open", "in_progress", "closed"]
 
 
+class TicketNoteBody(BaseModel):
+    body: str = Field(min_length=1)
+
+
+class TicketPhoneLogBody(BaseModel):
+    phone_outcome: Literal[
+        "reached",
+        "no_answer",
+        "left_voicemail",
+        "wrong_number",
+        "other",
+    ]
+    body: str = Field(min_length=1)
+
+
+class TicketReplyBody(BaseModel):
+    body: str = Field(min_length=1)
+
+
 class RescheduleBody(BaseModel):
     start_iso: str
+
+
+class AppointmentOutcomeBody(BaseModel):
+    status: Literal["no_show", "completed"]
 
 
 def _get_owner(session: Session, owner_id: int) -> Owner:
@@ -103,8 +134,8 @@ def _appointment_dict(appt: Appointment) -> dict[str, Any]:
     }
 
 
-def _ticket_dict(t: Ticket) -> dict[str, Any]:
-    return {
+def _ticket_dict(t: Ticket, *, latest_note: str | None = None) -> dict[str, Any]:
+    data = {
         "ticket_id": t.ticket_id,
         "status": t.status,
         "priority": t.priority,
@@ -119,6 +150,48 @@ def _ticket_dict(t: Ticket) -> dict[str, Any]:
         "respond_by_display": format_respond_by(t.respond_by) if t.respond_by else None,
         "created_at": t.created_at.isoformat() if t.created_at else None,
     }
+    if latest_note is not None:
+        data["latest_note"] = latest_note
+    return data
+
+
+def _latest_notes_by_ticket(
+    session: Session, ticket_ids: list[str]
+) -> dict[str, str]:
+    ids = [tid for tid in ticket_ids if tid]
+    if not ids:
+        return {}
+    rows = list(
+        session.scalars(
+            select(TicketActivity)
+            .where(
+                TicketActivity.ticket_id.in_(ids),
+                TicketActivity.kind == "note",
+            )
+            .order_by(TicketActivity.created_at.desc())
+        ).all()
+    )
+    latest: dict[str, str] = {}
+    for a in rows:
+        if a.ticket_id not in latest:
+            latest[a.ticket_id] = a.body or ""
+    return latest
+
+
+def _activity_dict(a: TicketActivity) -> dict[str, Any]:
+    return {
+        "id": a.id,
+        "ticket_id": a.ticket_id,
+        "kind": a.kind,
+        "body": a.body,
+        "phone_outcome": a.phone_outcome or "",
+        "created_by": a.created_by or "",
+        "created_at": a.created_at.isoformat() if a.created_at else None,
+    }
+
+
+def _owner_username(claims: dict) -> str:
+    return str(claims.get("username") or claims.get("sub") or "").strip()
 
 
 @router.post("/login")
@@ -348,6 +421,21 @@ def cancel_appointment(
     return {"ok": True, "detail": result}
 
 
+@router.post("/appointments/{appointment_id}/outcome")
+def mark_appointment_outcome(
+    appointment_id: str,
+    body: AppointmentOutcomeBody,
+    _claims: dict = Depends(require_owner_ready),
+):
+    with session_scope() as session:
+        result = mark_appointment_outcome_as_owner(
+            session, appointment_id, body.status
+        )
+    if result.startswith("[error]"):
+        raise HTTPException(status_code=400, detail=result.removeprefix("[error]").strip())
+    return {"ok": True, "detail": result}
+
+
 @router.get("/appointments/{appointment_id}/slots")
 def appointment_open_slots(
     appointment_id: str,
@@ -412,7 +500,13 @@ def list_tickets(
             q = q.where(Ticket.status == status.strip())
         q = q.order_by(Ticket.respond_by.asc()).limit(200)
         rows = list(session.scalars(q).all())
-        return {"tickets": [_ticket_dict(t) for t in rows]}
+        latest = _latest_notes_by_ticket(session, [t.ticket_id for t in rows])
+        return {
+            "tickets": [
+                _ticket_dict(t, latest_note=latest.get(t.ticket_id, ""))
+                for t in rows
+            ]
+        }
 
 
 @router.get("/tickets/{ticket_id}")
@@ -423,7 +517,86 @@ def get_ticket(ticket_id: str, _claims: dict = Depends(require_owner_ready)):
         ).first()
         if t is None:
             raise HTTPException(status_code=404, detail="Ticket not found")
-        return _ticket_dict(t)
+        activities = list_ticket_activities(session, t.ticket_id)
+        data = _ticket_dict(t)
+        data["activities"] = [_activity_dict(a) for a in activities]
+        data["phone_outcomes"] = list(PHONE_OUTCOMES)
+        return data
+
+
+@router.post("/tickets/{ticket_id}/notes")
+def post_ticket_note(
+    ticket_id: str,
+    body: TicketNoteBody,
+    claims: dict = Depends(require_owner_ready),
+):
+    with session_scope() as session:
+        result = add_ticket_note(
+            session,
+            ticket_id,
+            body.body,
+            created_by=_owner_username(claims),
+        )
+        if isinstance(result, str):
+            raise HTTPException(
+                status_code=400, detail=result.removeprefix("[error]").strip()
+            )
+        return {"ok": True, "activity": _activity_dict(result)}
+
+
+@router.post("/tickets/{ticket_id}/phone-log")
+def post_ticket_phone_log(
+    ticket_id: str,
+    body: TicketPhoneLogBody,
+    claims: dict = Depends(require_owner_ready),
+):
+    with session_scope() as session:
+        result = add_ticket_phone_log(
+            session,
+            ticket_id,
+            phone_outcome=body.phone_outcome,
+            body=body.body,
+            created_by=_owner_username(claims),
+        )
+        if isinstance(result, str):
+            raise HTTPException(
+                status_code=400, detail=result.removeprefix("[error]").strip()
+            )
+        t = session.scalars(
+            select(Ticket).where(Ticket.ticket_id == ticket_id.strip())
+        ).first()
+        return {
+            "ok": True,
+            "activity": _activity_dict(result),
+            "ticket": _ticket_dict(t) if t else None,
+        }
+
+
+@router.post("/tickets/{ticket_id}/reply")
+def post_ticket_reply(
+    ticket_id: str,
+    body: TicketReplyBody,
+    claims: dict = Depends(require_owner_ready),
+):
+    with session_scope() as session:
+        result = send_ticket_email_reply(
+            session,
+            ticket_id,
+            reply_body=body.body,
+            created_by=_owner_username(claims),
+        )
+        if isinstance(result, str):
+            raise HTTPException(
+                status_code=400, detail=result.removeprefix("[error]").strip()
+            )
+        t = session.scalars(
+            select(Ticket).where(Ticket.ticket_id == ticket_id.strip())
+        ).first()
+        return {
+            "ok": True,
+            "activity": _activity_dict(result),
+            "ticket": _ticket_dict(t) if t else None,
+        }
 
 
 @router.patch("/tickets/{ticket_id}")

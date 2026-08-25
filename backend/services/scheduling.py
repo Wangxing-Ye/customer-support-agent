@@ -121,6 +121,7 @@ SERVICE_IMAGES = {
     "free-consult": "/assets/Free-Initial-Consultation.jpg",
     "consult-30": "/assets/30-Minute-Client-Consultation.jpg",
     "consult-60": "/assets/60-Minute-Client-Consultation.jpg",
+    "annual-tax-reporting": "/assets/Annual-Tax-Reporting.jpg",
 }
 
 SERVICE_CATALOG = {
@@ -166,6 +167,23 @@ SERVICE_CATALOG = {
         "price_cents": 35000,
         "currency": "USD",
         "pay_when": "checkout_to_hold",
+        "fulfillment": "in_person",
+        "location_text": "",
+    },
+    "annual-tax-reporting": {
+        "name": "Annual Tax Reporting",
+        "description": (
+            "In-person annual tax reporting session at our Palo Alto office. "
+            "We review your documents and discuss filing next steps. "
+            "Priced at USD 250 per hour with a 2-hour minimum (USD 500). "
+            "Confirmed on booking; invoice due within 3 business days after the visit."
+        ),
+        "duration_minutes": 120,
+        "bookable": True,
+        "price": "USD 250/hour (2-hour minimum, USD 500)",
+        "price_cents": 50000,
+        "currency": "USD",
+        "pay_when": "pay_after",
         "fulfillment": "in_person",
         "location_text": "",
     },
@@ -1082,6 +1100,50 @@ def cancel_appointment_as_owner(session: Session, appointment_id: str) -> str:
         f"status=cancelled appointment_id={appt.appointment_id} "
         f"when={when_display} "
         "(Cancelled by owner; confirmation email was sent.)"
+    )
+
+
+def mark_appointment_outcome_as_owner(
+    session: Session,
+    appointment_id: str,
+    outcome: str,
+) -> str:
+    """Mark a past booked appointment as no_show or completed (owner dashboard)."""
+    aid = (appointment_id or "").strip()
+    outcome_n = (outcome or "").strip().lower()
+    if not aid:
+        return "[error] appointment_id is required."
+    if outcome_n not in ("no_show", "completed"):
+        return "[error] outcome must be no_show or completed."
+
+    appt = session.scalars(
+        select(Appointment).where(Appointment.appointment_id == aid)
+    ).first()
+    if appt is None:
+        return f"[error] Appointment '{aid}' not found."
+    if appt.status != "booked":
+        return (
+            f"[error] Appointment {aid} has status={appt.status}; "
+            "only booked appointments can be marked no_show or completed."
+        )
+
+    starts = appt.starts_at
+    if starts.tzinfo is None:
+        starts = starts.replace(tzinfo=ZoneInfo(FIRM_TIMEZONE))
+    now = datetime.now(timezone.utc)
+    starts_utc = starts.astimezone(timezone.utc)
+    if starts_utc > now:
+        return (
+            "[error] Appointment has not started yet. "
+            "Mark no_show or completed only after the start time."
+        )
+
+    appt.status = outcome_n
+    session.flush()
+    when_display = format_when(starts)
+    return (
+        f"status={outcome_n} appointment_id={appt.appointment_id} "
+        f"when={when_display} (Updated by owner.)"
     )
 
 

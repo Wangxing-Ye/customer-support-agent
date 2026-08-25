@@ -9,10 +9,18 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from backend.config import FIRM_TIMEZONE, TICKET_DEDUP_HOURS
-from backend.models import Ticket
+from backend.models import Ticket, TicketActivity
 from backend.services.email import send_template_email
 from backend.services.sla import compute_respond_by, format_respond_by
 from backend.services.scheduling import normalize_email
+
+PHONE_OUTCOMES = (
+    "reached",
+    "no_answer",
+    "left_voicemail",
+    "wrong_number",
+    "other",
+)
 
 
 def generate_ticket_id() -> str:
@@ -133,3 +141,124 @@ def create_support_ticket(
         "(Use respond_by_display exactly in your reply. Do not invent another time. "
         "A confirmation email was sent. Do not repeat full email, phone, or name.)"
     )
+
+
+def _require_open_ticket(session: Session, ticket_id: str) -> Ticket | str:
+    tid = (ticket_id or "").strip()
+    if not tid:
+        return "[error] ticket_id is required."
+    t = session.scalars(select(Ticket).where(Ticket.ticket_id == tid)).first()
+    if t is None:
+        return f"[error] Ticket '{tid}' not found."
+    if t.status == "closed":
+        return f"[error] Ticket {tid} is closed."
+    return t
+
+
+def list_ticket_activities(session: Session, ticket_id: str) -> list[TicketActivity]:
+    return list(
+        session.scalars(
+            select(TicketActivity)
+            .where(TicketActivity.ticket_id == ticket_id.strip())
+            .order_by(TicketActivity.created_at.asc())
+        ).all()
+    )
+
+
+def add_ticket_note(
+    session: Session,
+    ticket_id: str,
+    body: str,
+    created_by: str = "",
+) -> str | TicketActivity:
+    t = _require_open_ticket(session, ticket_id)
+    if isinstance(t, str):
+        return t
+    text = (body or "").strip()
+    if len(text) < 2:
+        return "[error] Note text is required (at least 2 characters)."
+    row = TicketActivity(
+        ticket_id=t.ticket_id,
+        kind="note",
+        body=text,
+        phone_outcome="",
+        created_by=(created_by or "").strip()[:64],
+    )
+    session.add(row)
+    session.flush()
+    return row
+
+
+def add_ticket_phone_log(
+    session: Session,
+    ticket_id: str,
+    phone_outcome: str,
+    body: str = "",
+    created_by: str = "",
+) -> str | TicketActivity:
+    t = _require_open_ticket(session, ticket_id)
+    if isinstance(t, str):
+        return t
+    outcome = (phone_outcome or "").strip().lower()
+    if outcome not in PHONE_OUTCOMES:
+        return (
+            "[error] phone_outcome must be one of: "
+            + ", ".join(PHONE_OUTCOMES)
+        )
+    text = (body or "").strip()
+    if len(text) < 2:
+        return "[error] Phone call notes are required (at least 2 characters)."
+    row = TicketActivity(
+        ticket_id=t.ticket_id,
+        kind="phone",
+        body=text,
+        phone_outcome=outcome,
+        created_by=(created_by or "").strip()[:64],
+    )
+    session.add(row)
+    session.flush()
+    if t.status == "open":
+        t.status = "in_progress"
+        session.flush()
+    return row
+
+
+def send_ticket_email_reply(
+    session: Session,
+    ticket_id: str,
+    reply_body: str,
+    created_by: str = "",
+) -> str | TicketActivity:
+    t = _require_open_ticket(session, ticket_id)
+    if isinstance(t, str):
+        return t
+    text = (reply_body or "").strip()
+    if len(text) < 2:
+        return "[error] Reply body is required (at least 2 characters)."
+
+    result = send_template_email(
+        "ticket_staff_reply",
+        t.email,
+        {
+            "ticket_id": t.ticket_id,
+            "name": t.name or "there",
+            "summary": t.summary,
+            "reply_body": text,
+        },
+    )
+    if (result.get("status") or "") == "error":
+        return f"[error] Email failed: {result.get('detail') or 'unknown error'}"
+
+    row = TicketActivity(
+        ticket_id=t.ticket_id,
+        kind="email_out",
+        body=text,
+        phone_outcome="",
+        created_by=(created_by or "").strip()[:64],
+    )
+    session.add(row)
+    session.flush()
+    if t.status == "open":
+        t.status = "in_progress"
+        session.flush()
+    return row

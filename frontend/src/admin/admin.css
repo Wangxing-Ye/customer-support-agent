@@ -49,7 +49,8 @@
 }
 
 .admin-card input,
-.admin-filters select {
+.admin-filters select,
+.admin-filters input.admin-search {
   width: 100%;
   box-sizing: border-box;
   padding: 10px 12px;
@@ -168,6 +169,32 @@
   min-width: 140px;
 }
 
+.admin-filters > div.admin-search-wrap {
+  min-width: 260px;
+  flex: 1 1 240px;
+  max-width: 420px;
+}
+
+.admin-filters .admin-btn {
+  margin-top: 0;
+}
+
+.admin-pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  font-size: 0.9rem;
+  color: #64748b;
+}
+
+.admin-pager .admin-btn {
+  margin-top: 0;
+  padding: 6px 12px;
+  font-size: 0.85rem;
+}
+
 .admin-table-wrap {
   overflow-x: auto;
   background: #fff;
@@ -248,13 +275,17 @@ table.admin-table th {
   margin: 12px 0 6px;
 }
 
-.admin-modal select {
+.admin-modal select,
+.admin-modal textarea,
+.admin-reply-card select,
+.admin-reply-card textarea {
   width: 100%;
   box-sizing: border-box;
   padding: 10px 12px;
   border: 1px solid #cbd5e1;
   border-radius: 8px;
   font-size: 0.95rem;
+  font-family: inherit;
 }
 
 .admin-modal-actions {
@@ -266,4 +297,110 @@ table.admin-table th {
 
 .admin-modal-actions .admin-btn {
   margin-top: 0;
+}
+
+.admin-note-cell {
+  max-width: 200px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.85rem;
+  color: #334155;
+}
+
+.admin-reply-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.admin-reply-toolbar .admin-btn {
+  margin-top: 0;
+}
+
+.admin-reply-card {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.08);
+  padding: 20px;
+  margin-bottom: 16px;
+  max-width: 720px;
+}
+
+.admin-reply-card h3 {
+  margin: 0 0 12px;
+  font-size: 1.05rem;
+}
+
+.admin-ticket-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px 16px;
+  margin: 0 0 14px;
+}
+
+.admin-ticket-meta div {
+  margin: 0;
+}
+
+.admin-ticket-meta dt {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.admin-ticket-meta dd {
+  margin: 2px 0 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.admin-ticket-summary {
+  margin: 0;
+  padding-top: 12px;
+  border-top: 1px solid #e2e8f0;
+  white-space: pre-wrap;
+}
+
+.admin-reply-card label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin: 12px 0 6px;
+}
+
+.admin-reply-card .admin-btn {
+  margin-top: 14px;
+}
+
+.admin-activity-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.admin-activity-list li {
+  border-top: 1px solid #e2e8f0;
+  padding: 12px 0;
+}
+
+.admin-activity-list li:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.admin-activity-meta {
+  font-size: 0.85rem;
+  color: #64748b;
+  margin-bottom: 6px;
+}
+
+.admin-activity-body {
+  white-space: pre-wrap;
+  font-size: 0.95rem;
 }

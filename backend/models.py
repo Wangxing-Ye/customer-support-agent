@@ -95,6 +95,24 @@ class Ticket(Base):
     )
 
 
+class TicketActivity(Base):
+    """Owner notes, phone call logs, and outbound email replies for a ticket."""
+
+    __tablename__ = "ticket_activities"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    ticket_id: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    # note | phone | email_out
+    kind: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
+    body: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    # phone: reached | no_answer | left_voicemail | wrong_number | other
+    phone_outcome: Mapped[str] = mapped_column(String(32), default="")
+    created_by: Mapped[str] = mapped_column(String(64), default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
 class EmailLog(Base):
     __tablename__ = "email_log"
     __table_args__ = (UniqueConstraint("id"),)

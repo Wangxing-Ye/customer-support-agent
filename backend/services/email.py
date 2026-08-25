@@ -84,6 +84,15 @@ TEMPLATES = {
             "and may call during your preferred window if needed.\n"
         ),
     },
+    "ticket_staff_reply": {
+        "subject": "Re: Support ticket {ticket_id} — {firm_name}",
+        "body": (
+            "Hello {name},\n\n"
+            "Regarding support ticket {ticket_id}:\n\n"
+            "{reply_body}\n\n"
+            "Your original request:\n{summary}\n"
+        ),
+    },
     "owner_email_verify": {
         "subject": "Verify owner email — {firm_name}",
         "body": (

@@ -35,6 +35,12 @@ export const SERVICE_IMAGES = [
     file: "/assets/60-Minute-Client-Consultation.jpg",
     alt: "60-Minute Client Consultation",
   },
+  {
+    slug: "annual-tax-reporting",
+    names: ["annual tax reporting", "tax reporting"],
+    file: "/assets/Annual-Tax-Reporting.jpg",
+    alt: "Annual Tax Reporting",
+  },
 ];
 
 function assetUrl(path) {

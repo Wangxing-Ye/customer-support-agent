@@ -40,7 +40,7 @@ The shipped example is **single-tenant Palo Alto Advisory CPA.**
 - Service catalog with pricing, photos, and bookable vs ticket-only services
 - On-the-hour availability (Mon–Fri, America/Los_Angeles; no noon / no half-hour starts)
 - Booking with confirmation email: cancellation code, Zoom or in-person location, Google Calendar add-event URL
-- Pay-when: free initial consult confirms immediately; paid 30- and 60-minute consultations hold the slot until **Stripe Checkout**
+- Pay-when: free initial consult confirms immediately; paid 30- and 60-minute consultations hold the slot until **Stripe Checkout**; Annual Tax Reporting confirms immediately and invoices after the visit (`pay_after`)
 - Complimentary Free Initial Consultation (15 min Zoom; no per-email cap)
 - Cancel with **email + cancellation code** (hashed at rest; 24-hour self-service window)
 - Support tickets when the AI cannot resolve or the user wants a human: name, email, phone, preferred call window, question, server-computed **respond_by** SLA
@@ -85,7 +85,7 @@ Appointment businesses share three layers. This demo keeps **one** `Service` / `
 | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | Free intro (skip payment)                            | **Covered** (complimentary 15-min consult; no per-email cap)                                                                         |
 | Pay on arrival (book now, pay at the shop)           | **Covered** (`pay_when=pay_on_arrival`; not used on Palo Alto Advisory CPA seed)                                                     |
-| Pay after the visit (invoice)                        | **Covered** (`pay_when=pay_after`; not used on Palo Alto Advisory CPA seed)                                                          |
+| Pay after the visit (invoice)                        | **Covered** (`pay_when=pay_after`; Annual Tax Reporting on Palo Alto Advisory CPA seed)                                              |
 | Checkout to hold the slot (then `booked`)            | **Covered** — Stripe Checkout for `consult-30` / `consult-60` (`STRIPE_PRODUCT_CONSULT_30` / `_60`); webhook `POST /webhooks/stripe` |
 | Agent must not say “confirmed” until `status=booked` | **Covered** (prompt + tool `status=pending_payment` vs `booked`)                                                                     |
 
@@ -111,14 +111,15 @@ Vite React widget → FastAPI → LangGraph agent
 ## Demo services
 
 
-| Service                       | Slug           | Price                | Booking                                               |
-| ----------------------------- | -------------- | -------------------- | ----------------------------------------------------- |
-| Free Initial Consultation     | `free-consult` | Free, 15 min         | Zoom, confirm immediately (`pay_when=none`)           |
-| 30-Minute Client Consultation | `consult-30`   | USD 175 (30 minutes) | Zoom, hold until Stripe Checkout (`checkout_to_hold`) |
-| 60-Minute Client Consultation | `consult-60`   | USD 350 (60 minutes) | In person, hold until Stripe Checkout (`checkout_to_hold`) |
+| Service                       | Slug                    | Price                                      | Booking                                                          |
+| ----------------------------- | ----------------------- | ------------------------------------------ | ---------------------------------------------------------------- |
+| Free Initial Consultation     | `free-consult`          | Free, 15 min                               | Zoom, confirm immediately (`pay_when=none`)                      |
+| 30-Minute Client Consultation | `consult-30`            | USD 175 (30 minutes)                       | Zoom, hold until Stripe Checkout (`checkout_to_hold`)            |
+| 60-Minute Client Consultation | `consult-60`            | USD 350 (60 minutes)                       | In person, hold until Stripe Checkout (`checkout_to_hold`)       |
+| Annual Tax Reporting          | `annual-tax-reporting`  | USD 250/hour (2-hour min, USD 500)         | In person, confirm immediately; invoice after (`pay_when=pay_after`) |
 
 
-Slots offered: **9, 10, 11 AM and 1–5 PM** PT on the hour for all three services (15 / 30 / 60 minutes). Photos live under `frontend/public/assets/` (`Free-Initial-Consultation.jpg`, `30-Minute-Client-Consultation.jpg`, `60-Minute-Client-Consultation.jpg`).
+Slots offered: **9, 10, 11 AM and 1–5 PM** PT on the hour for 15 / 30 / 60-minute services. Annual Tax Reporting is **120 minutes** of working time (must finish by 5:00 PM PT; lunch skipped), so later starts may be unavailable. Photos live under `frontend/public/assets/` (`Free-Initial-Consultation.jpg`, `30-Minute-Client-Consultation.jpg`, `60-Minute-Client-Consultation.jpg`, `Annual-Tax-Reporting.jpg`).
 
 ## Booking, cancel, tickets
 

@@ -29,7 +29,7 @@ from backend.config import (
     WHISPER_MODEL,
 )
 from backend.db import Base, engine, ensure_schema, session_scope
-from backend.models import Appointment, AvailabilityRule, EmailLog, Owner, Service, Ticket  # noqa: F401
+from backend.models import Appointment, AvailabilityRule, EmailLog, Owner, Service, Ticket, TicketActivity  # noqa: F401
 from backend.admin_api import router as admin_router
 from backend.rate_limit import (
     enforce_auth_refresh_limits,
