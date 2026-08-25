@@ -27,7 +27,7 @@ OWNER_JWT_AUDIENCE = (
 ).strip() or "owner-dashboard"
 OWNER_JWT_EXPIRE_MINUTES = int(os.getenv("OWNER_JWT_EXPIRE_MINUTES", "480"))
 ADMIN_UI_ORIGIN = (
-    os.getenv("ADMIN_UI_ORIGIN") or "http://localhost:3003"
+    os.getenv("ADMIN_UI_ORIGIN") or "http://localhost:3000"
 ).rstrip("/")
 
 # Phase-1 in-process rate limit: anonymous session minting (POST /auth/token).

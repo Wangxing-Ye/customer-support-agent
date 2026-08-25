@@ -1,4 +1,4 @@
-# Client Services Agent (Professional Services)
+# Customer Services Agent (Professional Services)
 
 A client-services AI Agent for **booking / appointment businesses**. **ServiceEmma** is the product name. This project focuses on **booking and appointment businesses**: online Q&A, a service catalog, reservations, pay-when rules, and tickets when chat cannot resolve the question.
 
@@ -144,7 +144,7 @@ Firm name and site come from `FIRM_NAME` and `FIRM_WEBSITE`. The assistant's dis
 
 ## Chat widget
 
-Open [http://localhost:3003](http://localhost:3003) after starting frontend + backend.
+Open [http://localhost:3000](http://localhost:3000) after starting frontend + backend.
 
 Header title, subtitle, greeting, and quick-action chips come from `BRAND` in [frontend/src/config.js](frontend/src/config.js). Change that object for another appointment business; keep the same agent. Default chips: **Our Services**, **Book appointment**, **Check appointment**, **Cancel appointment**, **Support Ticket**. Text chat uses `POST /chat/stream` (SSE). Voice uses `POST /chat` then TTS. Service images in replies can be clicked to enlarge.
 
@@ -202,7 +202,7 @@ uvicorn backend.app:app --reload --host 0.0.0.0 --port 8000
 cd frontend && npm install && npm run dev
 ```
 
-Open [http://localhost:3003](http://localhost:3003) for the chat widget, or [http://localhost:3003/admin.html](http://localhost:3003/admin.html) for the **Owner dashboard** (default `admin` / `OWNER_DEFAULT_PASSWORD`, then bind email and change password on first login).
+Open [http://localhost:3000](http://localhost:3000) for the chat widget, or [http://localhost:3000/admin.html](http://localhost:3000/admin.html) for the **Owner dashboard** (default `admin` / `OWNER_DEFAULT_PASSWORD`, then bind email and change password on first login).
 
 ### Knowledge base
 
@@ -243,7 +243,7 @@ Chat body: `{ "message": "..." }` (`thread_id` is ignored if sent). Appointment 
 
 ### Owner dashboard
 
-Single-tenant staff console at `/admin.html` (dev: port 3003).
+Single-tenant staff console at `/admin.html` (dev: port 3000).
 
 1. Bootstrap user from `OWNER_USERNAME` / `OWNER_DEFAULT_PASSWORD` (seeded on API startup if no owner row exists).
 2. First login returns `setup_required: true` → bind admin email (verification code via `EMAIL_PROVIDER`) → set a new password (min 10 chars). Default password stops working afterward.

@@ -17,7 +17,7 @@ OWNER_USERNAME=admin
 OWNER_DEFAULT_PASSWORD=changeme
 OWNER_JWT_AUDIENCE=owner-dashboard
 OWNER_JWT_EXPIRE_MINUTES=480
-ADMIN_UI_ORIGIN=http://localhost:3003
+ADMIN_UI_ORIGIN=http://localhost:3000
 # Phase-1 in-process rate limits (per API process; use Redis later for multi-worker).
 # Max POST /auth/token per client IP per rolling hour.
 SESSION_PER_IP_PER_HOUR=60
